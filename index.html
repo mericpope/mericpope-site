@@ -18,6 +18,12 @@ body{margin:0;font-family:'DM Sans',sans-serif}
 a{color:inherit;text-decoration:none}
 a:hover{opacity:.85}
 a:focus-visible{outline:2px solid #f7931e;outline-offset:3px}
+@media (max-width:560px){
+.cta-row{flex-wrap:nowrap!important;gap:8px!important}
+.cta{flex:1 1 0;justify-content:center;padding:0 8px!important;gap:6px!important;font-size:14px!important;white-space:nowrap}
+.cta svg{width:16px;height:16px}
+}
+@media (max-width:420px){.cta svg{display:none}}
 </style>
 </head>
 <body>
@@ -38,10 +44,10 @@ a:focus-visible{outline:2px solid #f7931e;outline-offset:3px}
 <p style="margin: 0">I work in finance and spend the rest of my time building things and going places. After almost a decade in New York I moved to London with work, and I've lived across countries for years.</p>
 <p style="margin: 0">Outside work I'm building a few small companies, all under Global Tether Ventures.</p>
 </div>
-<div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px">
-<a href="mailto:contact@mericpope.com" style="min-height: 48px; padding: 0 22px; border-radius: 999px; background: #f7931e; color: #181816; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Email</a>
-<a href="https://www.linkedin.com/in/mericpope/" target="_blank" rel="noopener" style="min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid #181816; color: #181816; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 10px; box-sizing: border-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 11v6M8 7.5v.01M12 17v-6M12 13a3 3 0 0 1 6 0v4"/></svg>LinkedIn</a>
-<a href="https://calendly.com/meric" target="_blank" rel="noopener" style="min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid #181816; color: #181816; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 10px; box-sizing: border-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Book a call</a>
+<div class="cta-row" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px">
+<a class="cta" href="mailto:contact@mericpope.com" style="min-height: 48px; padding: 0 22px; border-radius: 999px; background: #f7931e; color: #181816; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Email</a>
+<a class="cta" href="https://www.linkedin.com/in/mericpope/" target="_blank" rel="noopener" style="min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid #181816; color: #181816; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 10px; box-sizing: border-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 11v6M8 7.5v.01M12 17v-6M12 13a3 3 0 0 1 6 0v4"/></svg>LinkedIn</a>
+<a class="cta" href="https://calendly.com/meric" target="_blank" rel="noopener" style="min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid #181816; color: #181816; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 10px; box-sizing: border-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Book a call</a>
 </div>
 </div>
 
