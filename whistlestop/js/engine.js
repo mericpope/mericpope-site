@@ -876,8 +876,10 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
   //    the few nearest starting airports x the few best hub airports. (The proxy
   //    returns every pair Google has for that grid, so this costs one request.)
   const hopped = candidates.filter((i) => (i.pre.pos || i.post.pos) && !isSmall(i));
-  for (const side of ["pre", "post"]) {
-    const ofSide = hopped.filter((i) => i[side].pos);
+  // Trips with a hotel night fly their hop on a different day, so they get their own grid
+  // (a separate request) rather than competing with same-day hops for the same slots.
+  for (const [side, hotel] of [["pre", false], ["post", false], ["pre", true], ["post", true]]) {
+    const ofSide = hopped.filter((i) => i[side].pos && !!i[side].hotel === hotel);
     const hubs = [];
     for (const it of ofSide) {
       if (hubs.length >= HOP_HUBS) break;
