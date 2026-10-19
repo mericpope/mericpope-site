@@ -54,6 +54,7 @@ const CURATED = [
   A("JFK", "John F. Kennedy", "New York", "US", 40.6413, -73.7781, 1, true),
   A("EWR", "Newark Liberty", "New York", "US", 40.6895, -74.1745, 1, true),
   A("LGA", "LaGuardia", "New York", "US", 40.7769, -73.874, 1),
+  A("TEB", "Teterboro", "Teterboro", "US", 40.8501, -74.0608, 3), // private/charter field, no airline service
   A("HPN", "Westchester County", "White Plains", "US", 41.067, -73.7076, 3),
   A("ISP", "Long Island MacArthur", "Islip", "US", 40.7952, -73.1002, 3),
   A("SWF", "Stewart", "Newburgh", "US", 41.5041, -74.1048, 3),

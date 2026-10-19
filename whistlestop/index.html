@@ -44,7 +44,7 @@
           <input id="after" type="number" min="0.25" max="12" step="0.25" value="1.5" inputmode="decimal" />
         </label>
       </div>
-      <p class="help">“To start” is how many hours you’re willing to spend <b>travelling</b> from your starting point to reach a departure point (taxi, train, bus, ferry — or a short flight to another city). “To finish” is the same from where you land to your destination. Time spent waiting at airports isn’t counted against these, but it is shown in each trip’s total. The date is the day of the main flight; with an overnight stay, travel before the hotel night happens the day before (and after it, the day after you land).</p>
+      <p class="help">“To start” is how many hours you’re willing to spend <b>travelling</b> from your starting point to reach a departure point (taxi, train, bus, ferry — or a short flight to another city). “To finish” is the same from where you land to your destination. Airports in your starting city and your destination city (JFK, LaGuardia and Newark for New York) are always allowed — the hours are for going <b>beyond</b> them, such as landing in Washington and taking a train. Time spent waiting at airports isn’t counted against these, but it is shown in each trip’s total. The date is the day of the main flight; with an overnight stay, travel before the hotel night happens the day before (and after it, the day after you land).</p>
 
       <fieldset class="modes">
         <legend>Acceptable ways to travel</legend>
@@ -56,7 +56,8 @@
 
       <div class="toggles">
         <label class="switch"><input id="overnight" type="checkbox" /><span>I can stay overnight <em>(adds hotel cost for farther options)</em></span></label>
-        <label class="switch"><input id="positioning" type="checkbox" checked /><span>Allow a short repositioning flight <em>(e.g. a cheap flight to Milan, then the long-haul — booked as two separate tickets)</em></span></label>
+        <label class="switch"><input id="positioning" type="checkbox" checked /><span>Allow a short flight at the start <em>(e.g. a cheap flight London → Milan, then the long-haul; two separate tickets)</em></span></label>
+        <label class="switch"><input id="positioningEnd" type="checkbox" /><span>Allow a short flight at the end <em>(e.g. land in Boston, fly on to New York; otherwise the last leg is a train, bus or taxi)</em></span></label>
         <label class="switch"><input id="owncar" type="checkbox" /><span>I’ll drive my own car to departure points</span></label>
       </div>
 

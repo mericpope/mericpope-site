@@ -8,7 +8,7 @@ import { LIVE_PROVIDER_URL } from "./config.js";
 const $ = (id) => document.getElementById(id);
 const els = {
   form: $("form"), from: $("from"), to: $("to"), date: $("date"), before: $("before"), after: $("after"),
-  overnight: $("overnight"), positioning: $("positioning"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"),
+  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"),
 };
 const STORE = "whistlestop:form:v1";
@@ -42,7 +42,7 @@ function saveForm() {
   try {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
-      overnight: els.overnight.checked, positioning: els.positioning.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
+      overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
       rank: els.rank.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
     }));
   } catch { /* storage optional */ }
@@ -60,7 +60,7 @@ function restoreForm() {
   if (s.toPlace) toBox.setPlace(s.toPlace);
   if (s.date && s.date >= els.date.min) els.date.value = s.date;
   els.before.value = s.before ?? 3; els.after.value = s.after ?? 1.5;
-  els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.owncar.checked = !!s.owncar;
+  els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.positioningEnd.checked = s.positioningEnd === true; els.owncar.checked = !!s.owncar;
   els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4; els.rank.value = s.rank ?? "cash";
   if (Array.isArray(s.modes)) document.querySelectorAll('input[name="mode"]').forEach((i) => { i.checked = s.modes.includes(i.value); });
 }
@@ -282,7 +282,7 @@ function queryFromForm() {
   return {
     origin: places.origin, destination: places.destination, date: els.date.value,
     beforeHours: els.before.value, afterHours: els.after.value, modes: modes(),
-    overnight: els.overnight.checked, positioning: els.positioning.checked, ownCar: els.owncar.checked,
+    overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, ownCar: els.owncar.checked,
     valuePerHour: els.value.value, pointsCents: els.cents.value, rankBy: els.rank.value,
   };
 }

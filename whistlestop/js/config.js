@@ -13,4 +13,6 @@ const DEPLOYED = "https://whistlestop-api.mericpope.workers.dev";
 const isLocal = typeof location !== "undefined" && ["localhost", "127.0.0.1"].includes(location.hostname);
 const override = isLocal ? new URLSearchParams(location.search).get("live") : null;
 
-export const LIVE_PROVIDER_URL = override || DEPLOYED;
+// On localhost the real proxy is NEVER used by default (every call spends paid search credits);
+// pass ?live=<url> to test against a local simulator.
+export const LIVE_PROVIDER_URL = isLocal ? override : DEPLOYED;

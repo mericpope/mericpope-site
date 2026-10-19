@@ -38,6 +38,7 @@ const SELF_TRANSFER_MIN = 90; // collect bags + re-check in, on top of the norma
 const MAX_HOP_STARTS = 12; // origin-side airports a repositioning flight may start from (nearest first)
 const MAX_HOP_CHAINS = 250; // cap on repositioning chains kept per side (each starting airport still gets its best few)
 const MIN_PER_START = 5;
+const METRO_KM = 50; // a commercial airport this close to the place you typed IS that place's airport
 const MAX_EXTRA_GAP_MIN = 480; // a connection this much longer than the minimum is a wasted day, not a connection
 const RIDE_BUFFER_MIN = 20; // timetables aren't known: allow a wait per train/bus/ferry when saying when to leave
 
@@ -60,7 +61,8 @@ export function normalize(input) {
     beforeHours: clamp(input.beforeHours, 0.25, 12, 3),
     afterHours: clamp(input.afterHours, 0.25, 12, 1.5),
     modes: new Set((input.modes || MODES).filter((m) => MODES.includes(m))),
-    positioning: input.positioning !== false, // allow a short flight as a repositioning move
+    positioning: input.positioning !== false, // a short flight BEFORE the long one (on unless switched off)
+    positioningEnd: input.positioningEnd === true, // a short flight AFTER it: opt-in, otherwise a train/bus/taxi covers the last leg
     overnight: !!input.overnight,
     ownCar: !!input.ownCar,
     valuePerHour: clamp(input.valuePerHour, 0, 500, 0),
@@ -91,6 +93,7 @@ function buildContext(data, opts) {
     gateways: airports.filter((a) => a.tier === 1 || a.longHaul),
     transitModes: ["rail", "bus", "ferry"].filter((m) => opts.modes.has(m)),
     positioning: opts.positioning && opts.modes.has("air"),
+    positioningEnd: opts.positioningEnd && opts.modes.has("air"),
     date: opts.date,
     ownCar: opts.ownCar,
     value: opts.valuePerHour,
@@ -279,7 +282,7 @@ function transferLeg(a, b) {
 // All the ways to get from a point to an airport within `windowMin` minutes of
 // travelling: taxi; rides (up to MAX_RIDES) with changes; and - the key idea - ONE
 // short flight to another hub.
-function chainsToAirports(point, windowMin, noHotelMin, ctx) {
+function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop) {
   const best = new Map();
   const groundCache = new Map();
   const ground = (from, to) => {
@@ -288,10 +291,15 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx) {
     return groundCache.get(k);
   };
 
-  // Direct: taxi/drive straight to an airport.
-  for (const A of airportsNear(ctx, point, windowKm(windowMin))) {
+  // Direct: taxi/drive straight to an airport. The airports of the place you typed are
+  // ALWAYS allowed, whatever the hour limit: flying to New York means flying to New York
+  // (JFK, LaGuardia, Newark), not to Manhattan. The limit is for going BEYOND the city.
+  // Reaching them is normal, not a "long trip", so it never triggers a hotel night.
+  const isMetro = (A) => A.tier <= 2 && haversineKm(point, A) <= METRO_KM;
+  for (const A of airportsNear(ctx, point, Math.max(windowKm(windowMin), METRO_KM + 10))) {
     const g = ground(point, A);
     if (g.minutes <= windowMin) keepBest(best, makeChain([g], A, "direct", ctx, noHotelMin));
+    else if (isMetro(A)) keepBest(best, makeChain([g], A, "direct", ctx, Math.max(noHotelMin, g.minutes)));
   }
 
   // Via one or more rail/bus/ferry rides, with a change between each, then onward
@@ -356,7 +364,7 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx) {
   // One short flight to another hub: reach airport A1 within the limit, fly to a
   // gateway A2 (e.g. a budget airline to Milan), and the long flight leaves from A2.
   // The flight time counts toward your X hours; waiting around does not.
-  if (ctx.positioning) {
+  if (allowHop) {
     const starts = [...best.values()]
       .filter((c) => !c.needsHotel && !c.pos)
       .sort((a, b) => a.minutes - b.minutes)
@@ -538,8 +546,8 @@ export async function search(rawInput, data, deps = {}) {
   const itineraries = [];
 
   if (opts.modes.has("air")) {
-    const pres = chainsToAirports(origin, preWindow, beforeMin, ctx);
-    const posts = chainsToAirports(destination, postWindow, afterMin, ctx);
+    const pres = chainsToAirports(origin, preWindow, beforeMin, ctx, ctx.positioning);
+    const posts = chainsToAirports(destination, postWindow, afterMin, ctx, ctx.positioningEnd);
     for (const pre of pres) {
       for (const post of posts) {
         if (pre.end.id === post.end.id) continue;
@@ -1005,7 +1013,7 @@ async function refineHotels(itineraries, opts, ctx, deps, live) {
 function countHubs(point, windowMin, opts, ctx) {
   const wanted = new Set(opts.modes);
   return ctx.hubs.filter(
-    (h) => wanted.has(h.type) && groundLeg(point, h, { ownCar: ctx.ownCar }).minutes <= windowMin
+    (h) => wanted.has(h.type) && (groundLeg(point, h, { ownCar: ctx.ownCar }).minutes <= windowMin || (h.type === "air" && h.tier <= 2 && haversineKm(point, h) <= METRO_KM))
   ).length;
 }
 
