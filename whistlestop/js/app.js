@@ -80,6 +80,9 @@ function stepHtml(leg, date) {
   if (leg.kind === "hotel") sub = "One night • " + esc(leg.from);
   if (leg.kind === "tax") sub = "Added on top of the fare in the estimate model";
   if (leg.kind === "wait") sub = esc(leg.from);
+  if (leg.departs && leg.arrives) sub += ` · departs ${esc(clock(leg.departs))}, arrives ${esc(clock(leg.arrives, leg.departs))}`;
+  else if (leg.kind === "flight" && leg.date) sub += ` · ${esc(dayLabel(leg.date))}`;
+  if (leg.kind === "hotel" && leg.checkIn) sub += ` · night of ${esc(dayLabel(leg.checkIn))}`;
   if (leg.note) sub += ` · ${esc(leg.note)}`;
   const cost = leg.cost > 0 ? `${money(leg.cost)} ${badge(leg.source)}` : "";
   const time = leg.minutes > 0 ? `<small>${dur(leg.minutes)}</small>` : "";
@@ -90,6 +93,28 @@ function stepHtml(leg, date) {
   </li>`;
 }
 
+// "2026-12-10 11:05" -> "Thu 10 Dec, 11:05"; with a reference, just the time when it's the same day.
+const dayLabel = (iso) => new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+function clock(s, ref) {
+  const time = s.slice(11, 16);
+  return ref && ref.slice(0, 10) === s.slice(0, 10) ? time : `${dayLabel(s)}, ${time}`;
+}
+
+function timingHtml(it) {
+  const t = it.times;
+  if (!t) {
+    return it.legs.some((l) => l.kind === "flight" && l.source === "live")
+      ? `<div class="pts">Flight times weren’t available — check that the connections work before booking.</div>`
+      : "";
+  }
+  const parts = [];
+  if (t.leaveBy) parts.push(`<b>Set off by ${esc(clock(t.leaveBy))}</b>`);
+  if (t.arriveAt) parts.push(`reach your destination about <b>${esc(clock(t.arriveAt))}</b>`);
+  const rides = it.legs.some((l) => ["rail", "bus", "ferry"].includes(l.kind));
+  const caveat = rides ? " Train, bus and ferry timetables aren’t checked — this allows 20 minutes’ wait per ride." : "";
+  return `<div class="pts">${parts.join(" · ")}.${caveat}</div>`;
+}
+
 const stepsHtml = (it, date) => `<ol class="steps">${it.legs.map((l) => stepHtml(l, date)).join("")}</ol>`;
 
 function totalsHtml(it, res) {
@@ -97,7 +122,7 @@ function totalsHtml(it, res) {
     ? `<div class="pts">Fly on points: ${num(it.points.points)} pts + ${money(it.points.fees)} taxes/fees ≈ ${money(it.pointsEffectiveCost)} all-in at ${res.input.pointsCents}¢/pt ${badge(it.points.source)}</div>`
     : "";
   return `<div class="totals"><span>Total door to door</span><span class="big">${money(it.totalCost)}</span></div>
-    <div class="pts">${dur(it.travelMinutes)} start to finish${waitNote(it)}${it.hotelNights ? ` + ${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""} in a hotel` : ""}</div>${pts}${ticketNote(it)}`;
+    <div class="pts">${dur(it.travelMinutes)} start to finish${waitNote(it)}${it.hotelNights ? ` + ${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""} in a hotel` : ""}</div>${pts}${timingHtml(it)}${ticketNote(it)}`;
 }
 
 const waitMinutes = (it) => it.legs.filter((l) => l.kind === "wait").reduce((s, l) => s + l.minutes, 0);
@@ -184,7 +209,7 @@ function noticeHtml(res) {
   const lv = res.live;
   if (lv?.active) {
     const hotels = lv.hotelsPriced ? ` and ${lv.hotelsPriced} hotel rate${lv.hotelsPriced > 1 ? "s" : ""}` : "";
-    const dropped = res.stats.unverified ? ` ${res.stats.unverified} route${res.stats.unverified > 1 ? "s" : ""} without a live price for every flight can’t be ranked; ${res.stats.unverified > 1 ? "they’re" : "it’s"} listed separately at the bottom as an estimate.` : "";
+    const dropped = res.stats.unverified ? ` The most promising routes were priced live; the other ${num(res.stats.unverified)} can’t be ranked against real quotes, so only the best few are shown separately at the bottom, as estimates.` : "";
     return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}. Every ranked flight is a real quote.${dropped} Taxis, trains, buses and ferries are still estimates (marked EST).</div>`;
   }
   const why = lv?.error

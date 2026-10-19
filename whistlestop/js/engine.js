@@ -38,6 +38,17 @@ const SELF_TRANSFER_MIN = 90; // collect bags + re-check in, on top of the norma
 const MAX_HOP_STARTS = 12; // origin-side airports a repositioning flight may start from (nearest first)
 const MAX_HOP_CHAINS = 250; // cap on repositioning chains kept per side (each starting airport still gets its best few)
 const MIN_PER_START = 5;
+const MAX_EXTRA_GAP_MIN = 480; // a connection this much longer than the minimum is a wasted day, not a connection
+const RIDE_BUFFER_MIN = 20; // timetables aren't known: allow a wait per train/bus/ferry when saying when to leave
+
+// Local clock times from the price provider ("2026-12-10 11:05"). Only ever compared
+// or shifted within one place's own clock, so no time zones are needed.
+const parseClock = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(s || "");
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) / 60000 : null;
+};
+const fmtClock = (min) => new Date(min * 60000).toISOString().slice(0, 16).replace("T", " ");
+const dayOf = (clock) => String(clock).slice(0, 10);
 
 const clamp = (v, lo, hi, dflt) => (Number.isFinite(+v) && v !== "" && v !== null ? Math.min(hi, Math.max(lo, +v)) : dflt);
 
@@ -398,8 +409,17 @@ function chainsToStations(point, mode, windowMin, noHotelMin, ctx) {
 }
 
 // ---- itinerary assembly ---------------------------------------------------------------
-function hotelLeg(chain, phase) {
+// The travel date shifted by n days, computed once (itineraries ask for it thousands of times).
+function travelDay(ctx, n) {
+  if (!ctx.date) return "";
+  ctx.dayCache ??= new Map();
+  if (!ctx.dayCache.has(n)) ctx.dayCache.set(n, n === 0 ? ctx.date : addDays(ctx.date, n));
+  return ctx.dayCache.get(n);
+}
+
+function hotelLeg(chain, phase, ctx) {
   return {
+    checkIn: travelDay(ctx, phase === "pre" ? -1 : 0),
     kind: "hotel",
     label: `Hotel night near ${chain.end.name}`,
     from: chain.end.name,
@@ -469,14 +489,25 @@ function airItinerary(pre, post, opts, ctx) {
   const intl = A.cc !== B.cc;
   const main = flightLeg(A, B, est, "main");
 
-  const legs = [...pre.legs];
-  if (pre.hotel) legs.push(hotelLeg(pre, "pre"));
+  // Which DAY each flight is on. The main flight is on your travel date. With a hotel night
+  // between a repositioning flight and the main one, that flight is the day before (outbound)
+  // or the day after (arrival). Chains are shared between itineraries, so copy before stamping.
+  const day = (n) => travelDay(ctx, n);
+  const stamp = (list, date) => list.map((l) => (l.kind === "flight" ? { ...l, date } : l));
+  // a night in a hotel replaces the "collect bags and re-check" gap between two flights
+  const unlessHotel = (list, hotel) => (hotel ? list.filter((l) => l.role !== "connect") : list);
+  main.date = ctx.date;
+
+  // (only chains with a repositioning flight contain a flight, so only they need copying)
+  const legs = pre.pos ? stamp(unlessHotel(pre.legs, pre.hotel), pre.hotel ? day(-1) : day(0)) : [...pre.legs];
+  if (pre.hotel) legs.push(hotelLeg(pre, "pre", ctx));
   legs.push(waitLeg(A, "Check-in & security", intl ? 150 : 100, "checkin"));
   legs.push(main);
   if (est.taxes > 0) legs.push(taxLeg(A, est, main.id));
   legs.push(waitLeg(B, "Arrival & baggage", intl ? 60 : 30, "arrive"));
-  if (post.hotel) legs.push(hotelLeg(post, "post"));
-  legs.push(...chainLegs(post, "post", ctx));
+  if (post.hotel) legs.push(hotelLeg(post, "post", ctx));
+  const tail = chainLegs(post, "post", ctx);
+  legs.push(...(post.pos ? stamp(unlessHotel(tail, post.hotel), post.hotel ? day(1) : day(0)) : tail));
 
   const it = { mode: "air", jumpOff: A, landing: B, pre, post, legs, points: null, route: routeCodes(pre, A, B, post) };
   attachPoints(it, ctx);
@@ -486,9 +517,9 @@ function airItinerary(pre, post, opts, ctx) {
 function transitItinerary(link, S, S2, pre, post, opts, ctx) {
   const main = rideLeg(link, S, S2);
   const legs = [...pre.legs];
-  if (pre.hotel) legs.push(hotelLeg(pre, "pre"));
+  if (pre.hotel) legs.push(hotelLeg(pre, "pre", ctx));
   legs.push(main);
-  if (post.hotel) legs.push(hotelLeg(post, "post"));
+  if (post.hotel) legs.push(hotelLeg(post, "post", ctx));
   legs.push(...chainLegs(post, "post", ctx));
   return finish({ mode: link.mode, jumpOff: S, landing: S2, pre, post, legs, points: null, route: [] }, opts);
 }
@@ -536,7 +567,7 @@ export async function search(rawInput, data, deps = {}) {
   }
 
   // Live pricing (optional). Estimates pick the candidates; real quotes decide.
-  const live = { active: false, requested: 0, priced: 0, hotelsPriced: 0, error: null };
+  const live = { active: false, requested: 0, priced: 0, hotelsPriced: 0, rejectedByTimetable: 0, error: null };
   const byScore = (x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes;
   if (deps.livePrices) await refineFlights(itineraries, opts, ctx, deps, live);
   if (deps.liveHotel) await refineHotels(itineraries, opts, ctx, deps, live);
@@ -638,8 +669,9 @@ const GROUP_LIMITS = { main: { pairs: 20, airports: 8 }, pre: { pairs: 16, airpo
 const HOP_STARTS = 4; // origin-side airports to try a repositioning flight from
 const HOP_HUBS = 4; // hub airports to try repositioning flights to
 
-function newGroup(name) {
-  return { name, limits: GROUP_LIMITS[name], pairs: new Map(), from: new Set(), to: new Set() };
+// One request per (role, DAY): a repositioning flight before a hotel night flies the day before.
+function newGroup(name, date) {
+  return { name, date, limits: GROUP_LIMITS[name], pairs: new Map(), from: new Set(), to: new Set() };
 }
 function groupFits(g, f) {
   if (g.pairs.has(`${f.fromCode}-${f.toCode}`)) return true;
@@ -662,37 +694,160 @@ function liveFlightLeg(leg, q) {
     source: "live",
     stops: q.stops,
     note: liveNote(q),
+    ...(q.departs && q.arrives ? { departs: q.departs, arrives: q.arrives } : {}),
   };
+}
+
+// The real flights we may choose among for one leg: the cheapest sensible one, plus a few
+// alternatives at other times of day (when the provider sent them).
+function quoteOptions(q) {
+  const base = { taxesIncluded: q.taxesIncluded, from: q.from, to: q.to };
+  if (!Array.isArray(q.options) || !q.options.length) return [q];
+  return q.options
+    .filter((o) => Number.isFinite(o?.fare))
+    .map((o) => ({ ...base, ...o, ...(o.fare === q.fare && o.departs === q.departs ? { slowerCheaper: q.slowerCheaper } : {}) }));
+}
+
+// Pick the cheapest combination of real flights whose TIMES work together. Two flights on
+// separate tickets must leave room for the airport time between them (that is the sum of
+// the wait legs between them); across a hotel night the second must simply be on a later
+// day. Flights without times can't be checked, so they don't constrain anything.
+// Returns null when no combination connects.
+function chooseFlights(it, quoted, valuePerHour = 0) {
+  const idx = [];
+  it.legs.forEach((l, i) => { if (l.kind === "flight" && quoted.has(l.id)) idx.push(i); });
+  const lists = idx.map((i) => quoteOptions(quoted.get(it.legs[i].id)));
+
+  const link = (a, b, prev, next) => {
+    // legs strictly between the two flights
+    const between = it.legs.slice(a + 1, b);
+    const hotel = between.some((l) => l.kind === "hotel");
+    const t1 = parseClock(prev.arrives);
+    const t2 = parseClock(next.departs);
+    if (t1 === null || t2 === null) return { ok: true, extra: 0 };
+    if (hotel) return { ok: dayOf(next.departs) > dayOf(prev.arrives), extra: 0 };
+    const need = between.filter((l) => l.kind === "wait").reduce((s, l) => s + l.minutes, 0);
+    const gap = t2 - t1;
+    return gap >= need && gap <= need + MAX_EXTRA_GAP_MIN ? { ok: true, extra: gap - need } : { ok: false };
+  };
+
+  let best = null;
+  const walk = (k, picked, fare, extras) => {
+    if (k === lists.length) {
+      // cheapest wins; with a value of time set, hours spent waiting between flights count against a choice
+      const extra = extras.reduce((s, e) => s + e, 0);
+      const score = fare + (extra / 60) * valuePerHour;
+      if (!best || score < best.score || (score === best.score && extra < best.extra)) best = { picked: [...picked], fare, score, extras: [...extras], extra };
+      return;
+    }
+    for (const o of lists[k]) {
+      let extra = null;
+      if (k > 0) {
+        const r = link(idx[k - 1], idx[k], picked[k - 1], o);
+        if (!r.ok) continue;
+        extra = r.extra;
+      }
+      picked.push(o);
+      if (extra !== null) extras.push(extra);
+      walk(k + 1, picked, fare + o.fare, extras);
+      picked.pop();
+      if (extra !== null) extras.pop();
+    }
+  };
+  walk(0, [], 0, []);
+  return best && { ...best, idx };
 }
 
 function applyQuotes(it, byKey, opts, ctx) {
   const quoted = new Map();
   for (const l of it.legs) {
     if (l.kind !== "flight") continue;
-    const q = byKey.get(`${l.fromCode}-${l.toCode}`);
+    const q = byKey.get(`${l.date || ""}|${l.fromCode}-${l.toCode}`);
     if (q) quoted.set(l.id, q);
   }
   if (!quoted.size) return it;
+
+  const chosen = chooseFlights(it, quoted, opts.valuePerHour);
+  if (!chosen) return null; // real flights exist, but none of them connect in time
+  const pick = new Map(chosen.idx.map((i, k) => [it.legs[i].id, chosen.picked[k]]));
+  // spare time beyond the minimum goes into the gap between the two tickets
+  const spare = new Map();
+  if (chosen.idx.length > 1) {
+    chosen.idx.slice(1).forEach((i, k) => {
+      const between = it.legs.slice(chosen.idx[k] + 1, i);
+      const c = between.find((l) => l.role === "connect");
+      if (c) spare.set(c, chosen.extras[k]);
+    });
+  }
+
   const legs = [];
   for (const l of it.legs) {
-    if (l.kind === "flight" && quoted.has(l.id)) legs.push(liveFlightLeg(l, quoted.get(l.id)));
-    else if (l.kind === "tax" && quoted.get(l.forFlight)?.taxesIncluded) continue; // live all-in fare already has the taxes
+    if (l.kind === "flight" && pick.has(l.id)) legs.push(liveFlightLeg(l, pick.get(l.id)));
+    else if (l.kind === "tax" && pick.get(l.forFlight)?.taxesIncluded) continue; // live all-in fare already has the taxes
+    else if (spare.get(l)) legs.push({ ...l, minutes: l.minutes + spare.get(l) });
     else legs.push(l);
   }
   const next = { ...it, legs };
   attachPoints(next, ctx);
+  attachTimes(next);
   return finish(next, opts);
+}
+
+// Clock times for the trip, when the provider gave us flight times: when you must set off
+// to make the first flight, and about when you reach the destination. Trains and buses have
+// no timetables here, so each ride gets a waiting allowance. Not given when a hotel night
+// sits on that side - the ground legs then happen the day before / after, at a time you choose.
+function attachTimes(it) {
+  const legs = it.legs;
+  const fi = legs.map((l, i) => (l.kind === "flight" && l.departs ? i : -1)).filter((i) => i >= 0);
+  if (!fi.length) return;
+  const first = fi[0];
+  const last = fi[fi.length - 1];
+  const t = { known: fi.length === legs.filter((l) => l.kind === "flight").length };
+  const hotelBefore = legs.slice(0, first).some((l) => l.kind === "hotel");
+  if (!hotelBefore) {
+    const before = legs.slice(0, first);
+    const mins = before.reduce((s, l) => s + l.minutes, 0) + before.filter((l) => ["rail", "bus", "ferry"].includes(l.kind)).length * RIDE_BUFFER_MIN;
+    t.leaveBy = fmtClock(parseClock(legs[first].departs) - mins);
+  }
+  const hotelAfter = legs.slice(last + 1).some((l) => l.kind === "hotel");
+  if (!hotelAfter) {
+    const mins = legs.slice(last + 1).reduce((s, l) => s + l.minutes, 0);
+    t.arriveAt = fmtClock(parseClock(legs[last].arrives) + mins);
+  }
+  it.times = t;
+  // a hotel after landing is booked for the night you actually land
+  legs.forEach((l, i) => {
+    if (l.kind === "hotel" && l.phase === "post") {
+      const f = legs.slice(0, i).reverse().find((x) => x.kind === "flight" && x.arrives);
+      if (f) l.checkIn = dayOf(f.arrives);
+    }
+  });
 }
 
 async function refineFlights(itineraries, opts, ctx, deps, live) {
   const K = deps.liveTopK ?? 10;
   const air = itineraries.filter((i) => i.mode === "air").sort((x, y) => x.score - y.score);
-  const groups = { main: newGroup("main"), pre: newGroup("pre"), post: newGroup("post") };
+  const groups = new Map(); // `${role}@${day}` -> group
+  const groupOf = (f) => {
+    const k = `${f.side}@${f.date}`;
+    if (!groups.has(k)) groups.set(k, newGroup(f.side, f.date));
+    return groups.get(k);
+  };
+  const today = new Date().toISOString().slice(0, 10);
   const flightsOf = (it) => it.legs.filter((l) => l.kind === "flight");
+  // Flights AFTER the long one are dated from when the long flight really lands (an eastbound
+  // overnight flight lands the next day), which isn't known until it has been priced - so
+  // they wait for a second round.
+  const deferred = [];
   const tryAdd = (it, force) => {
     const flights = flightsOf(it);
-    if (!force && !flights.every((f) => groupFits(groups[f.side], f))) return false;
-    for (const f of flights) groupAdd(groups[f.side], f);
+    const now = flights.filter((f) => f.side !== "post");
+    // a flight "the day before" can't be priced when that day is already past
+    if (!force && now.some((f) => f.date && f.date < today)) return false;
+    if (!force && !now.every((f) => groupFits(groupOf(f), f))) return false;
+    for (const f of now) groupAdd(groupOf(f), f);
+    for (const f of flights) if (f.side === "post") deferred.push(f);
     return true;
   };
 
@@ -739,33 +894,65 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
   }
 
   const byKey = new Map();
+  const done = new Set();
   let mainPriced = 0;
-  await Promise.all(
-    Object.values(groups)
-      .filter((g) => g.pairs.size)
-      .map(async (g) => {
-        live.requested += g.pairs.size;
-        try {
-          // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
-          const rows = await deps.livePrices([...g.pairs.values()], ctx.date, { group: g.name });
-          for (const r of rows || []) {
-            if (!Number.isFinite(r?.fare)) continue;
-            byKey.set(`${r.from}-${r.to}`, r);
-            live.priced++;
-            if (g.name === "main") mainPriced++;
+  const priceGroups = () =>
+    Promise.all(
+      [...groups.entries()]
+        .filter(([k, g]) => g.pairs.size && !done.has(k))
+        .map(async ([k, g]) => {
+          done.add(k);
+          live.requested += g.pairs.size;
+          try {
+            // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
+            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name });
+            for (const r of rows || []) {
+              if (!Number.isFinite(r?.fare)) continue;
+              byKey.set(`${g.date}|${r.from}-${r.to}`, r);
+              live.priced++;
+              if (g.name === "main") mainPriced++;
+            }
+          } catch (e) {
+            live.error = live.error || e?.message || String(e);
           }
-        } catch (e) {
-          live.error = live.error || e?.message || String(e);
-        }
-      })
-  );
+        })
+    );
+
+  await priceGroups(); // round 1: the long flights and anything BEFORE them
   if (!mainPriced) return; // nothing trustworthy: stay on estimates (and say so)
   live.active = true;
 
-  for (let i = 0; i < itineraries.length; i++) {
-    if (itineraries[i].mode === "air") itineraries[i] = applyQuotes(itineraries[i], byKey, opts, ctx);
+  // Round 2: flights after the long one, now that we know which day it lands.
+  for (const it of itineraries) {
+    if (it.mode !== "air" || !it.post.pos) continue;
+    const main = it.legs.find((l) => l.kind === "flight" && l.role === "main");
+    const q = byKey.get(`${main.date}|${main.fromCode}-${main.toCode}`);
+    const landed = q?.arrives ? dayOf(q.arrives) : main.date;
+    if (!landed) continue;
+    for (const l of it.legs) {
+      if (l.kind === "flight" && l.side === "post") l.date = it.post.hotel ? addDays(landed, 1) : landed;
+      if (l.kind === "hotel" && l.phase === "post") l.checkIn = landed;
+    }
   }
+  for (const f of deferred) if (!(f.date && f.date < today) && groupFits(groupOf(f), f)) groupAdd(groupOf(f), f);
+  await priceGroups();
+
+  // Real quotes can show a trip is impossible (the hop lands after the long flight leaves,
+  // on every option we were sent). Those are removed, not listed.
+  const kept = [];
+  for (const it of itineraries) {
+    if (it.mode !== "air") { kept.push(it); continue; }
+    const next = applyQuotes(it, byKey, opts, ctx);
+    if (next) kept.push(next);
+    else live.rejectedByTimetable++;
+  }
+  itineraries.splice(0, itineraries.length, ...kept);
 }
+
+// The night a hotel leg is for: set when the trip is built (and corrected once the real
+// landing time is known), defaulting to the travel date's neighbours.
+const hotelDate = (leg, ctx) => leg.checkIn || (leg.phase === "pre" ? addDays(ctx.date, -1) : ctx.date);
+const hotelKey = (leg, ctx) => `${leg.hubId}|${leg.phase}|${hotelDate(leg, ctx)}`;
 
 // Live hotel rates for the few overnight options that matter, applied to every
 // itinerary that uses the same hub/side so numbers stay consistent.
@@ -778,13 +965,13 @@ async function refineHotels(itineraries, opts, ctx, deps, live) {
 
   const lookups = new Map();
   for (const it of dedupe(pool).slice(0, N)) {
-    for (const leg of it.legs) if (leg.kind === "hotel") lookups.set(`${leg.hubId}|${leg.phase}`, leg);
+    for (const leg of it.legs) if (leg.kind === "hotel") lookups.set(hotelKey(leg, ctx), leg);
   }
   const rates = new Map();
   await Promise.all(
     [...lookups.entries()].map(async ([key, leg]) => {
       try {
-        const checkIn = leg.phase === "pre" ? addDays(ctx.date, -1) : ctx.date;
+        const checkIn = hotelDate(leg, ctx);
         const r = await deps.liveHotel(ctx.hubsById.get(leg.hubId), checkIn, addDays(checkIn, 1));
         if (r && Number.isFinite(r.nightly) && r.nightly > 0) rates.set(key, r);
       } catch {
@@ -798,7 +985,7 @@ async function refineHotels(itineraries, opts, ctx, deps, live) {
   for (const it of itineraries) {
     let changed = false;
     for (const leg of it.legs) {
-      const r = leg.kind === "hotel" ? rates.get(`${leg.hubId}|${leg.phase}`) : null;
+      const r = leg.kind === "hotel" ? rates.get(hotelKey(leg, ctx)) : null;
       if (r) {
         leg.cost = Math.round(r.nightly);
         leg.source = "live";
@@ -820,7 +1007,9 @@ function countHubs(point, windowMin, opts, ctx) {
 
 function warn(itineraries, opts, ctx, origin, destination, preWindow, postWindow, live) {
   const out = [];
-  if (live.error) out.push(`Live prices were unavailable (${live.error}) — showing estimates instead.`);
+  if (live.error && live.active) out.push(`Some live price lookups failed (${live.error}); routes that depend on them are shown as estimates.`);
+  else if (live.error) out.push(`Live prices were unavailable (${live.error}) — showing estimates instead.`);
+  if (live.rejectedByTimetable) out.push(`${live.rejectedByTimetable} route${live.rejectedByTimetable > 1 ? "s were" : " was"} dropped because the real flight times don't connect (for example, the short flight lands after the long one has left).`);
   else if (live.requested > 0 && live.priced === 0) out.push("The live price provider returned no fares for these routes — showing estimates instead.");
   const a = countHubs(origin, preWindow, opts, ctx);
   const b = countHubs(destination, postWindow, opts, ctx);
