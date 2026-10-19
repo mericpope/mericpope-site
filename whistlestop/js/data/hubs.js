@@ -1,13 +1,17 @@
-// Curated seed dataset: hubs (airports, rail/bus stations, ferry terminals)
-// and the intercity routes between them. Coordinates are approximate
-// (good to a couple of km), which is plenty for transfer-time estimates.
+// Hubs (airports, rail/bus stations, ferry terminals) and the intercity routes
+// between them. Coordinates are approximate (good to a couple of km), which is
+// plenty for transfer-time estimates.
 //
-// This is deliberately a *seed*: it covers the UK, Benelux/France/Germany and
-// the US east coast + Chicago + California. Coverage grows by adding rows
-// here (or by generating this file from OpenStreetMap/OurAirports - see
-// README). Routes listed are real services; PRICES are modelled separately
-// in pricing.js and always labelled as estimates unless a live provider
-// supplies them.
+// Two sources, merged:
+//   * AIRPORTS: ~4,000 airports worldwide with scheduled service, generated from
+//     the OurAirports public-domain dataset (see airports.generated.js and
+//     scripts/build-airports.mjs). A hand-curated entry below wins when both exist.
+//   * STATIONS + ROUTES: a curated seed (UK mainline rail, Eurostar and Western
+//     Europe, Amtrak north-east, Channel ferries, intercity coaches). Outside
+//     those regions only flights are available - grow coverage by adding rows.
+// Routes listed are real services; PRICES are modelled separately in pricing.js
+// and always labelled as estimates unless a live provider supplies them.
+import { AIRPORT_ROWS } from "./airports.generated.js";
 
 // tier: 1 = major hub, 2 = regional, 3 = small/secondary (low-cost carriers)
 // longHaul: has intercontinental scheduled service (used to gate transatlantic
@@ -19,7 +23,7 @@ const S = (type, id, name, city, cc, lat, lon, tier = 2) => ({
   id: `${type}:${id}`, type, name, city, cc, lat, lon, tier,
 });
 
-export const HUBS = [
+const CURATED = [
   // ---- United Kingdom ----
   A("LHR", "Heathrow", "London", "GB", 51.47, -0.4543, 1, true),
   A("LGW", "Gatwick", "London", "GB", 51.1537, -0.1821, 1, true),
@@ -167,6 +171,14 @@ export const HUBS = [
   S("rail", "BHI", "Birmingham International", "Birmingham", "GB", 52.4509, -1.7258, 2),
   S("rail", "MCA", "Manchester Airport station", "Manchester", "GB", 53.3653, -2.2733, 2),
 ];
+
+// Generated airports fill in everything the curated list doesn't cover.
+const curatedAirports = new Set(CURATED.filter((h) => h.type === "air").map((h) => h.code));
+const GENERATED = AIRPORT_ROWS.filter((r) => !curatedAirports.has(r[0])).map(([code, name, city, cc, lat, lon, tier, gateway]) => ({
+  id: `air:${code}`, type: "air", code, name: `${name} (${code})`, city, cc, lat, lon, tier, longHaul: gateway === 1,
+}));
+
+export const HUBS = [...CURATED, ...GENERATED];
 
 // Routes. `corridor` expands an ordered list into every station pair, since
 // intercity services typically run end to end and stop along the way.

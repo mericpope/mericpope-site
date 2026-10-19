@@ -115,7 +115,7 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx) {
   };
 
   // Direct: taxi/drive straight to an airport.
-  for (const A of ctx.airports) {
+  for (const A of airportsNear(ctx, point, windowKm(windowMin))) {
     const g = ground(point, A);
     if (g.minutes <= windowMin) keepBest(best, makeChain([g], A, "direct", ctx, noHotelMin));
   }
@@ -156,7 +156,7 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx) {
       for (const [hubId, labels] of arrived) {
         const H2 = ctx.hubsById.get(hubId);
         for (const L of labels) {
-          for (const A of ctx.airports) {
+          for (const A of airportsNear(ctx, H2, windowKm(windowMin - L.minutes))) {
             if (!makesProgress(L.first, H2, A)) continue;
             const g2 = ground(H2, A);
             if (L.minutes + g2.minutes > windowMin) continue;
@@ -184,6 +184,26 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx) {
     }
   }
   return [...best.values()];
+}
+
+// ---- spatial prefilter ------------------------------------------------------
+// With ~4,000 airports, never test them all: a road transfer of N minutes can't
+// cover more than ~0.9*N km in a straight line (70 km/h road speed / 1.3 detour),
+// so only airports inside that box can possibly fit. Cached per hub.
+const windowKm = (minutes) => Math.max(10, minutes * 0.9 + 10);
+
+function airportsNear(ctx, p, km) {
+  const key = p.id ? `${p.id}|${Math.ceil(km / 25)}` : null; // plain points (the origin/destination) aren't cached
+  ctx.airportCache ??= new Map();
+  if (key && ctx.airportCache.has(key)) return ctx.airportCache.get(key);
+  const dLat = km / 111;
+  const dLon = km / (111 * Math.max(0.15, Math.cos((p.lat * Math.PI) / 180)));
+  const out = ctx.airports.filter((a) => {
+    const dl = Math.abs(a.lon - p.lon);
+    return Math.abs(a.lat - p.lat) <= dLat && Math.min(dl, 360 - dl) <= dLon;
+  });
+  if (key) ctx.airportCache.set(key, out);
+  return out;
 }
 
 // ---- multi-ride helpers ---------------------------------------------------
@@ -486,9 +506,17 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
   // The direct baseline goes first so the comparison is always apples to apples.
   const base = pickBaseline(air, opts);
   if (base) want(base, true);
+  // Small airports often have no service on a given route, so they get at most 2
+  // slots - otherwise the estimate model's cheap-airline discount would let them
+  // crowd out the airports that actually have flights.
+  let smallPairs = 0;
   for (const it of dedupe(air)) {
     if (wanted.size >= Math.min(K + 1, 20)) break; // 20 = most pairs the proxy accepts
+    const small = it.jumpOff.tier === 3 || it.landing.tier === 3;
+    if (small && smallPairs >= 2) continue;
+    const before = wanted.size;
     want(it);
+    if (small && wanted.size > before) smallPairs++;
   }
 
   live.requested = wanted.size;
