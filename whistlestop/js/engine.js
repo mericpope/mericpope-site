@@ -153,13 +153,15 @@ function chainsToStations(point, mode, windowMin, noHotelMin, ctx) {
 }
 
 // ---- Itinerary assembly -------------------------------------------------
-function hotelLeg(chain) {
+function hotelLeg(chain, phase) {
   return {
     kind: "hotel",
     label: `Hotel night near ${chain.end.name}`,
     from: chain.end.name,
     to: chain.end.name,
     city: chain.end.city,
+    hubId: chain.end.id,
+    phase, // "pre" = the night before departing, "post" = the night after landing
     minutes: 0,
     cost: chain.hotel.cost,
     source: chain.hotel.source,
@@ -198,10 +200,17 @@ function airItinerary(pre, post, opts, ctx, live) {
   const taxes = live ? (live.taxesIncluded ? 0 : est.taxes) : est.taxes;
   const source = live ? "live" : est.source;
 
+  const stopsText = !live ? "" : live.stops === 0 ? "nonstop" : Number.isFinite(live.stops) ? `${live.stops} stop${live.stops > 1 ? "s" : ""}` : "";
+  const flightLabel = live ? ["Flight", live.airline, stopsText].filter(Boolean).join(" · ") : "Flight";
+
   const legs = [...pre.legs];
-  if (pre.hotel) legs.push(hotelLeg(pre));
+  if (pre.hotel) legs.push(hotelLeg(pre, "pre"));
   legs.push({ kind: "wait", label: "Check-in & security", from: A.name, to: A.name, minutes: intl ? 150 : 100, cost: 0, source: "estimate" });
-  legs.push({ kind: "flight", label: "Flight", from: A.name, to: B.name, fromCode: A.code, toCode: B.code, fromCity: A.city, toCity: B.city, km: est.km, minutes, cost: fare, source });
+  legs.push({
+    kind: "flight", label: flightLabel, from: A.name, to: B.name, fromCode: A.code, toCode: B.code, fromCity: A.city, toCity: B.city,
+    km: est.km, minutes, cost: fare, source,
+    stops: live?.stops, note: live ? (live.taxesIncluded ? "Price includes taxes & fees" : "Taxes added separately") : undefined,
+  });
   if (taxes > 0) {
     legs.push({
       kind: "tax",
@@ -210,7 +219,7 @@ function airItinerary(pre, post, opts, ctx, live) {
     });
   }
   legs.push({ kind: "wait", label: "Arrival & baggage", from: B.name, to: B.name, minutes: intl ? 60 : 30, cost: 0, source: "estimate" });
-  if (post.hotel) legs.push(hotelLeg(post));
+  if (post.hotel) legs.push(hotelLeg(post, "post"));
   legs.push(...[...post.legs].reverse().map(reverseLeg));
 
   const pts = pointsEstimate(fare, `${A.id}:${B.id}:${ctx.date}`);
@@ -231,9 +240,9 @@ function airItinerary(pre, post, opts, ctx, live) {
 function transitItinerary(link, S, S2, pre, post, opts, ctx) {
   const main = rideLeg(link, S, S2, ctx.date);
   const legs = [...pre.legs];
-  if (pre.hotel) legs.push(hotelLeg(pre));
+  if (pre.hotel) legs.push(hotelLeg(pre, "pre"));
   legs.push(main);
-  if (post.hotel) legs.push(hotelLeg(post));
+  if (post.hotel) legs.push(hotelLeg(post, "post"));
   legs.push(...[...post.legs].reverse().map(reverseLeg));
   return finish({ mode: link.mode, jumpOff: S, landing: S2, pre, post, legs, points: null }, opts);
 }
@@ -279,14 +288,19 @@ export async function search(rawInput, data, deps = {}) {
     }
   }
 
-  // Optional live refinement: re-price the most promising flights with real
-  // fares, then re-rank. Without a provider everything stays an estimate.
-  if (deps.livePrice) await refineWithLive(itineraries, opts, ctx, deps);
+  // Live pricing (optional). Estimates pick the candidates; real quotes decide.
+  const live = { active: false, requested: 0, priced: 0, hotelsPriced: 0, error: null };
+  const byScore = (x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes;
+  if (deps.livePrices) await refineFlights(itineraries, opts, ctx, deps, live);
+  if (deps.liveHotel) await refineHotels(itineraries, opts, ctx, deps, live);
 
-  itineraries.sort((x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes);
+  itineraries.sort(byScore);
 
-  const baseline = pickBaseline(itineraries, opts);
-  const picked = dedupe(itineraries);
+  // When live fares are on, only flights that were actually live-priced may
+  // win - an unverified estimate must never beat a real quote.
+  const pool = live.active ? itineraries.filter(isVerified) : itineraries;
+  const baseline = pickBaseline(pool, opts);
+  const picked = dedupe(pool);
   const best = picked[0] || null;
 
   return {
@@ -297,13 +311,118 @@ export async function search(rawInput, data, deps = {}) {
     overnightOptions: opts.overnight ? picked.filter((i) => i.hotelNights > 0).slice(0, 6) : [],
     savings: best && baseline ? round2(baseline.totalCost - best.totalCost) : null,
     minutesSaved: best && baseline ? baseline.travelMinutes - best.travelMinutes : null,
+    live,
     stats: {
       itineraries: itineraries.length,
+      unverified: itineraries.length - pool.length,
       hubsNearOrigin: countHubs(origin, preWindow, opts, ctx),
       hubsNearDestination: countHubs(destination, postWindow, opts, ctx),
     },
-    warnings: warn(itineraries, opts, ctx, origin, destination, preWindow, postWindow),
+    warnings: warn(pool, opts, ctx, origin, destination, preWindow, postWindow, live),
   };
+}
+
+const isVerified = (it) => it.mode !== "air" || it.legs.some((l) => l.kind === "flight" && l.source === "live");
+
+function addDays(iso, n) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// ---- live refinement ------------------------------------------------------
+// ONE batched request for the most promising airport pairs (plus the direct
+// baseline's pair) - providers charge per search, so we never fan out.
+async function refineFlights(itineraries, opts, ctx, deps, live) {
+  const K = deps.liveTopK ?? 10;
+  const MAX_AIRPORTS = deps.liveMaxAirports ?? 8; // per side: what one batched request can carry
+  const air = itineraries.filter((i) => i.mode === "air").sort((x, y) => x.score - y.score);
+  const wanted = new Map();
+  const fromSet = new Set();
+  const toSet = new Set();
+  const want = (it, force = false) => {
+    const key = `${it.jumpOff.code}-${it.landing.code}`;
+    if (wanted.has(key)) return;
+    const fits = (fromSet.has(it.jumpOff.code) || fromSet.size < MAX_AIRPORTS) && (toSet.has(it.landing.code) || toSet.size < MAX_AIRPORTS);
+    if (!fits && !force) return;
+    wanted.set(key, { from: it.jumpOff.code, to: it.landing.code });
+    fromSet.add(it.jumpOff.code);
+    toSet.add(it.landing.code);
+  };
+  // The direct baseline goes first so the comparison is always apples to apples.
+  const base = pickBaseline(air, opts);
+  if (base) want(base, true);
+  for (const it of dedupe(air)) {
+    if (wanted.size >= Math.min(K + 1, 20)) break; // 20 = most pairs the proxy accepts
+    want(it);
+  }
+
+  live.requested = wanted.size;
+  if (!wanted.size) return;
+
+  let results;
+  try {
+    results = await deps.livePrices([...wanted.values()], ctx.date);
+  } catch (e) {
+    live.error = e?.message || String(e);
+    return;
+  }
+  const byKey = new Map((results || []).filter((r) => Number.isFinite(r?.fare)).map((r) => [`${r.from}-${r.to}`, r]));
+  live.priced = byKey.size;
+  if (!byKey.size) return;
+  live.active = true;
+
+  for (let i = 0; i < itineraries.length; i++) {
+    const cur = itineraries[i];
+    if (cur.mode !== "air") continue;
+    const r = byKey.get(`${cur.jumpOff.code}-${cur.landing.code}`);
+    if (!r) continue;
+    const rebuilt = airItinerary(cur.pre, cur.post, opts, ctx, r);
+    if (rebuilt) itineraries[i] = rebuilt;
+  }
+}
+
+// Live hotel rates for the few overnight options that matter, applied to every
+// itinerary that uses the same hub/side so numbers stay consistent.
+async function refineHotels(itineraries, opts, ctx, deps, live) {
+  if (!ctx.date) return;
+  const N = deps.liveHotelTop ?? 6;
+  const pool = (live.active ? itineraries.filter(isVerified) : itineraries)
+    .filter((i) => i.hotelNights > 0)
+    .sort((x, y) => x.score - y.score);
+
+  const lookups = new Map();
+  for (const it of dedupe(pool).slice(0, N)) {
+    for (const leg of it.legs) if (leg.kind === "hotel") lookups.set(`${leg.hubId}|${leg.phase}`, leg);
+  }
+  const rates = new Map();
+  await Promise.all(
+    [...lookups.entries()].map(async ([key, leg]) => {
+      try {
+        const checkIn = leg.phase === "pre" ? addDays(ctx.date, -1) : ctx.date;
+        const r = await deps.liveHotel(ctx.hubsById.get(leg.hubId), checkIn, addDays(checkIn, 1));
+        if (r && Number.isFinite(r.nightly) && r.nightly > 0) rates.set(key, r);
+      } catch {
+        /* a failed hotel lookup just leaves the estimate in place */
+      }
+    })
+  );
+  live.hotelsPriced = rates.size;
+  if (!rates.size) return;
+
+  for (const it of itineraries) {
+    let changed = false;
+    for (const leg of it.legs) {
+      const r = leg.kind === "hotel" ? rates.get(`${leg.hubId}|${leg.phase}`) : null;
+      if (r) {
+        leg.cost = Math.round(r.nightly);
+        leg.source = "live";
+        leg.note = r.name ? `Typical cheaper room: ${r.name}` : undefined;
+        changed = true;
+      }
+    }
+    if (changed) finish(it, opts);
+  }
 }
 
 function countHubs(point, windowMin, opts, ctx) {
@@ -313,8 +432,10 @@ function countHubs(point, windowMin, opts, ctx) {
   ).length;
 }
 
-function warn(itineraries, opts, ctx, origin, destination, preWindow, postWindow) {
+function warn(itineraries, opts, ctx, origin, destination, preWindow, postWindow, live) {
   const out = [];
+  if (live.error) out.push(`Live prices were unavailable (${live.error}) — showing estimates instead.`);
+  else if (live.requested > 0 && live.priced === 0) out.push("The live price provider returned no fares for these routes — showing estimates instead.");
   const a = countHubs(origin, preWindow, opts, ctx);
   const b = countHubs(destination, postWindow, opts, ctx);
   if (a === 0) out.push("No supported hubs found within your 'before' window of the origin — try more hours or more modes, or the area may not be in the built-in dataset yet.");
@@ -350,26 +471,3 @@ function dedupe(sorted) {
   return out;
 }
 
-async function refineWithLive(itineraries, opts, ctx, deps) {
-  const K = deps.liveTopK ?? 8;
-  const candidates = dedupe([...itineraries].sort((x, y) => x.score - y.score)).filter((i) => i.mode === "air").slice(0, K);
-  const pairs = new Map();
-  for (const it of candidates) pairs.set(`${it.jumpOff.id}>${it.landing.id}`, it);
-
-  await Promise.all(
-    [...pairs.values()].map(async (it) => {
-      try {
-        const live = await deps.livePrice(it.jumpOff, it.landing, ctx.date);
-        if (!live || !Number.isFinite(live.fare)) return;
-        for (let i = 0; i < itineraries.length; i++) {
-          const cur = itineraries[i];
-          if (cur.mode !== "air" || cur.jumpOff.id !== it.jumpOff.id || cur.landing.id !== it.landing.id) continue;
-          const rebuilt = airItinerary(cur.pre, cur.post, opts, ctx, live);
-          if (rebuilt) itineraries[i] = rebuilt;
-        }
-      } catch {
-        /* a failed live lookup just leaves the estimate in place */
-      }
-    })
-  );
-}

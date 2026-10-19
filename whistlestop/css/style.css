@@ -187,3 +187,19 @@ h2 small { font-weight: 400; color: var(--muted); }
 .baseline { border-style: dashed; }
 
 footer { padding-top: 28px; padding-bottom: 48px; color: var(--muted); font-size: 0.85rem; }
+
+/* ---- location type-ahead ---- */
+.combo { position: relative; }
+.suggestions {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
+  margin: 0; padding: 4px; list-style: none; max-height: 320px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.suggestions[hidden] { display: none; }
+.suggestions [role="option"] {
+  display: flex; flex-direction: column; gap: 1px; padding: 9px 10px; border-radius: 8px; cursor: pointer;
+}
+.suggestions [role="option"][aria-selected="true"], .suggestions [role="option"]:hover { background: var(--brand-soft); }
+.sg-main { font-weight: 600; overflow-wrap: anywhere; }
+.sg-sub { color: var(--muted); font-size: 0.8rem; text-transform: capitalize; }
+.sg-note { padding: 9px 10px; color: var(--muted); font-size: 0.85rem; }

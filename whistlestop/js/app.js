@@ -1,6 +1,7 @@
 import { search } from "./engine.js";
 import { HUBS, LINKS } from "./data/hubs.js";
-import { geocode } from "./places.js";
+import { suggest } from "./places.js";
+import { attachCombobox } from "./combobox.js";
 import { legLink } from "./links.js";
 import { LIVE_PROVIDER_URL } from "./config.js";
 
@@ -12,6 +13,11 @@ const els = {
 };
 const STORE = "whistlestop:form:v1";
 const DATA = { hubs: HUBS, links: LINKS };
+
+const getSuggestions = (text, signal) => suggest(text, HUBS, { signal });
+const fromBox = attachCombobox(els.from, { getSuggestions });
+const toBox = attachCombobox(els.to, { getSuggestions });
+const toPoint = (s) => ({ name: s.label, lat: s.lat, lon: s.lon, cc: s.cc });
 
 let places = null; // { origin, destination } once resolved
 let lastQuery = null;
@@ -37,7 +43,7 @@ function saveForm() {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
       overnight: els.overnight.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
-      rank: els.rank.value, modes: modes(),
+      rank: els.rank.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
     }));
   } catch { /* storage optional */ }
 }
@@ -50,6 +56,8 @@ function restoreForm() {
   els.date.value = soon;
   if (!s) return;
   els.from.value = s.from ?? ""; els.to.value = s.to ?? "";
+  if (s.fromPlace) fromBox.setPlace(s.fromPlace);
+  if (s.toPlace) toBox.setPlace(s.toPlace);
   if (s.date && s.date >= els.date.min) els.date.value = s.date;
   els.before.value = s.before ?? 3; els.after.value = s.after ?? 1.5;
   els.overnight.checked = !!s.overnight; els.owncar.checked = !!s.owncar;
@@ -72,6 +80,7 @@ function stepHtml(leg, date) {
   if (leg.kind === "hotel") sub = "One night • " + esc(leg.from);
   if (leg.kind === "tax") sub = "Added on top of the fare in the estimate model";
   if (leg.kind === "wait") sub = esc(leg.from);
+  if (leg.note) sub += ` · ${esc(leg.note)}`;
   const cost = leg.cost > 0 ? `${money(leg.cost)} ${badge(leg.source)}` : "";
   const time = leg.minutes > 0 ? `<small>${dur(leg.minutes)}</small>` : "";
   return `<li>
@@ -149,9 +158,12 @@ function cardHtml(it, res, date, { open = false, baseline = false, tag = "" } = 
 }
 
 function noticeHtml(res) {
-  const all = [res.best, ...res.alternatives, ...(res.overnightOptions || [])].filter(Boolean);
-  const live = all.some((i) => i.legs.some((l) => l.source === "live"));
-  if (live) return `<div class="notice ok"><b>Live fares included</b> for the most promising flights (marked LIVE). Everything marked EST is still an estimate.</div>`;
+  const lv = res.live;
+  if (lv?.active) {
+    const hotels = lv.hotelsPriced ? ` and ${lv.hotelsPriced} hotel rate${lv.hotelsPriced > 1 ? "s" : ""}` : "";
+    const dropped = res.stats.unverified ? ` ${res.stats.unverified} flight option${res.stats.unverified > 1 ? "s" : ""} without a live price ${res.stats.unverified > 1 ? "were" : "was"} left out, so every flight shown is a real quote.` : "";
+    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}.${dropped} Taxis, trains, buses and ferries are still estimates (marked EST).</div>`;
+  }
   return `<div class="notice"><b>Estimates only.</b> These prices come from a built-in model (distance-based fares, approximate departure taxes, typical hotel rates) — not live quotes — so use them to find <i>which</i> options deserve a look, then confirm with the “Check live” links.</div>`;
 }
 
@@ -183,12 +195,25 @@ function render(res, date) {
 }
 
 // ---------- running a search ----------
-async function livePrice(A, B, date) {
-  if (!LIVE_PROVIDER_URL) return null;
-  const res = await fetch(`${LIVE_PROVIDER_URL}/flight?from=${encodeURIComponent(A.code)}&to=${encodeURIComponent(B.code)}&date=${encodeURIComponent(date)}`);
-  if (!res.ok) return null;
-  const j = await res.json();
-  return Number.isFinite(j.fare) ? { fare: j.fare, taxesIncluded: !!j.taxesIncluded, minutes: j.minutes } : null;
+// One request prices many airport pairs (the proxy forwards a single batched
+// search, so cost stays low).
+async function livePrices(pairs, date) {
+  const qs = new URLSearchParams({
+    from: [...new Set(pairs.map((p) => p.from))].join(","),
+    to: [...new Set(pairs.map((p) => p.to))].join(","),
+    date,
+    pairs: pairs.map((p) => `${p.from}-${p.to}`).join(","),
+  });
+  const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body.results || [];
+}
+
+async function liveHotel(hub, checkIn, checkOut) {
+  const q = hub.type === "air" ? `hotels near ${hub.name}` : `hotels near ${hub.name}, ${hub.city}`;
+  const res = await fetch(`${LIVE_PROVIDER_URL}/hotel?${new URLSearchParams({ q, checkin: checkIn, checkout: checkOut })}`);
+  return res.ok ? res.json() : null;
 }
 
 function queryFromForm() {
@@ -202,7 +227,7 @@ function queryFromForm() {
 
 async function runSearch() {
   lastQuery = queryFromForm();
-  const res = await search(lastQuery, DATA, LIVE_PROVIDER_URL ? { livePrice } : {});
+  const res = await search(lastQuery, DATA, LIVE_PROVIDER_URL ? { livePrices, liveHotel } : {});
   render(res, lastQuery.date);
 }
 
@@ -218,8 +243,8 @@ els.form.addEventListener("submit", async (e) => {
   saveForm();
   try {
     setStatus("Finding your places…");
-    const origin = await geocode(els.from.value);
-    const destination = await geocode(els.to.value);
+    const origin = toPoint(await fromBox.resolve());
+    const destination = toPoint(await toBox.resolve());
     places = { origin, destination };
     setStatus("Comparing routes…");
     await runSearch();
