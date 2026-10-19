@@ -54,6 +54,17 @@
         <label class="chip"><input type="checkbox" name="mode" value="ferry" checked /><span>Ferries</span></label>
       </fieldset>
 
+      <label class="field bags">
+        <span>Bags <em>per traveller</em></span>
+        <select id="bags">
+          <option value="personal">Personal item only (cheapest fares)</option>
+          <option value="carryon">1 cabin bag (fares re-priced with it)</option>
+          <option value="checked1">1 checked bag (fees not included — see note)</option>
+          <option value="checked2">2 checked bags (fees not included — see note)</option>
+        </select>
+      </label>
+      <p class="help">Budget airlines charge for anything beyond a small personal item, so the headline fare can be much lower than what you’ll pay. “1 cabin bag” re-prices every flight with the bag included, from live data. Checked-bag fees are <b>not</b> available from the price source, so they are never guessed: trips are flagged instead, and each separate ticket means another fee.</p>
+
       <div class="toggles">
         <label class="switch"><input id="overnight" type="checkbox" /><span>I can stay overnight <em>(adds hotel cost for farther options)</em></span></label>
         <label class="switch"><input id="positioning" type="checkbox" checked /><span>Allow a short flight at the start <em>(e.g. a cheap flight London → Milan, then the long-haul; two separate tickets)</em></span></label>

@@ -208,3 +208,6 @@ footer { padding-top: 28px; padding-bottom: 48px; color: var(--muted); font-size
 .sg-main { font-weight: 600; overflow-wrap: anywhere; }
 .sg-sub { color: var(--muted); font-size: 0.8rem; text-transform: capitalize; }
 .sg-note { padding: 9px 10px; color: var(--muted); font-size: 0.85rem; }
+
+.bagwarn { color: var(--warn-fg); }
+.field.bags { margin-top: 14px; }

@@ -8,7 +8,7 @@ import { LIVE_PROVIDER_URL } from "./config.js";
 const $ = (id) => document.getElementById(id);
 const els = {
   form: $("form"), from: $("from"), to: $("to"), date: $("date"), before: $("before"), after: $("after"),
-  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"),
+  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"), bags: $("bags"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"),
 };
 const STORE = "whistlestop:form:v1";
@@ -43,7 +43,7 @@ function saveForm() {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
       overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
-      rank: els.rank.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
+      rank: els.rank.value, bags: els.bags.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
     }));
   } catch { /* storage optional */ }
 }
@@ -61,7 +61,7 @@ function restoreForm() {
   if (s.date && s.date >= els.date.min) els.date.value = s.date;
   els.before.value = s.before ?? 3; els.after.value = s.after ?? 1.5;
   els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.positioningEnd.checked = s.positioningEnd === true; els.owncar.checked = !!s.owncar;
-  els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4; els.rank.value = s.rank ?? "cash";
+  els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4; els.rank.value = s.rank ?? "cash"; els.bags.value = ["personal", "carryon", "checked1", "checked2"].includes(s.bags) ? s.bags : "personal";
   if (Array.isArray(s.modes)) document.querySelectorAll('input[name="mode"]').forEach((i) => { i.checked = s.modes.includes(i.value); });
 }
 
@@ -84,6 +84,7 @@ function stepHtml(leg, date) {
   else if (leg.kind === "flight" && leg.date) sub += ` · ${esc(dayLabel(leg.date))}`;
   if (leg.kind === "hotel" && leg.checkIn) sub += ` · night of ${esc(dayLabel(leg.checkIn))}`;
   if (leg.note) sub += ` · ${esc(leg.note)}`;
+  if (leg.bagNotes?.length) sub += ` · Google: ${esc(leg.bagNotes.join("; "))}`;
   const cost = leg.cost > 0 ? `${money(leg.cost)} ${badge(leg.source)}` : "";
   const time = leg.minutes > 0 ? `<small>${dur(leg.minutes)}</small>` : "";
   return `<li>
@@ -122,11 +123,18 @@ function totalsHtml(it, res) {
     ? `<div class="pts">Fly on points: ${num(it.points.points)} pts + ${money(it.points.fees)} taxes/fees ≈ ${money(it.pointsEffectiveCost)} all-in at ${res.input.pointsCents}¢/pt ${badge(it.points.source)}</div>`
     : "";
   return `<div class="totals"><span>Total door to door</span><span class="big">${money(it.totalCost)}</span></div>
-    <div class="pts">${dur(it.travelMinutes)} start to finish${waitNote(it)}${it.hotelNights ? ` + ${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""} in a hotel` : ""}</div>${pts}${timingHtml(it)}${ticketNote(it)}`;
+    <div class="pts">${dur(it.travelMinutes)} start to finish${waitNote(it)}${it.hotelNights ? ` + ${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""} in a hotel` : ""}</div>${pts}${timingHtml(it)}${bagNote(it)}${ticketNote(it)}`;
 }
 
 const waitMinutes = (it) => it.legs.filter((l) => l.kind === "wait").reduce((s, l) => s + l.minutes, 0);
 const waitNote = (it) => { const w = waitMinutes(it); return w >= 30 ? ` (${dur(w)} of it waiting)` : ""; };
+
+function bagNote(it) {
+  if (!it.checkedBags) return "";
+  const tickets = it.flightCount || 1;
+  const fees = tickets > 1 ? `, and this trip has <b>${tickets} separate tickets</b>, so the fee applies on each` : "";
+  return `<div class="pts bagwarn"><b>Checked-bag fees are NOT in this total.</b> You asked for ${it.checkedBags} checked bag${it.checkedBags > 1 ? "s" : ""} per traveller${fees}. Check each airline’s bag fee before booking.</div>`;
+}
 
 function ticketNote(it) {
   if (!it.separateTickets) return "";
@@ -268,18 +276,37 @@ async function livePrices(pairs, date, info = {}) {
     date,
     // the main long-haul grid may spend a couple of extra lookups filling gaps; positioning hops never do
     fill: info.group === "main" && info.round !== 2 ? "2" : "0",
+    bags: String(info.bags ? 1 : 0),
     pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
-  const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-  return body.results || [];
+  return cached(`/flight?${qs}`, async () => {
+    const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    return body.results || [];
+  });
 }
 
 async function liveHotel(hub, checkIn, checkOut) {
   const q = hub.type === "air" ? `hotels near ${hub.name}` : `hotels near ${hub.name}, ${hub.city}`;
-  const res = await fetch(`${LIVE_PROVIDER_URL}/hotel?${new URLSearchParams({ q, checkin: checkIn, checkout: checkOut })}`);
-  return res.ok ? res.json() : null;
+  const params = new URLSearchParams({ q, checkin: checkIn, checkout: checkOut });
+  return cached(`/hotel?${params}`, async () => {
+    const res = await fetch(`${LIVE_PROVIDER_URL}/hotel?${params}`);
+    return res.ok ? res.json() : null;
+  });
+}
+
+// Every live lookup costs a paid search. Identical lookups made within 30 minutes (for example
+// when you only change "time is worth $/hour" or "rank by") reuse the answer instead. Failures
+// are never cached, so a retry really retries.
+const LOOKUPS = new Map();
+const LOOKUP_TTL_MS = 30 * 60 * 1000;
+async function cached(key, fetcher) {
+  const hit = LOOKUPS.get(key);
+  if (hit && Date.now() - hit.at < LOOKUP_TTL_MS) return hit.value;
+  const value = await fetcher();
+  if (value !== null && value !== undefined) LOOKUPS.set(key, { at: Date.now(), value });
+  return value;
 }
 
 function queryFromForm() {
@@ -287,7 +314,7 @@ function queryFromForm() {
     origin: places.origin, destination: places.destination, date: els.date.value,
     beforeHours: els.before.value, afterHours: els.after.value, modes: modes(),
     overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, ownCar: els.owncar.checked,
-    valuePerHour: els.value.value, pointsCents: els.cents.value, rankBy: els.rank.value,
+    valuePerHour: els.value.value, pointsCents: els.cents.value, rankBy: els.rank.value, bags: els.bags.value,
   };
 }
 

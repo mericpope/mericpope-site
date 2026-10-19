@@ -68,6 +68,10 @@ export function normalize(input) {
     valuePerHour: clamp(input.valuePerHour, 0, 500, 0),
     pointsCents: clamp(input.pointsCents, 0.1, 10, 1.4),
     rankBy: input.rankBy === "points" ? "points" : "cash",
+    // Bags per traveller. "carryon" re-prices every flight WITH a cabin bag (real data from the
+    // price provider). Checked bags: the provider has no setting or fee amounts for them, so
+    // they are never guessed - trips are flagged instead (see itin.checkedBags).
+    bags: ["personal", "carryon", "checked1", "checked2"].includes(input.bags) ? input.bags : "personal",
   };
 }
 
@@ -461,6 +465,8 @@ function finish(itin, opts) {
   itin.hasEstimate = itin.legs.some((l) => l.cost > 0 && l.source !== "live");
   itin.flightCount = flights.length;
   itin.separateTickets = flights.length > 1; // two flights = two tickets, no protection if one is late
+  itin.checkedBags = opts.bags === "checked1" ? 1 : opts.bags === "checked2" ? 2 : 0; // fees NOT included in totalCost
+  itin.cabinBagIncluded = opts.bags !== "personal";
   const timeCost = (itin.travelMinutes / 60) * opts.valuePerHour;
   itin.scoreCash = itin.totalCost + timeCost;
   if (itin.points) {
@@ -693,7 +699,9 @@ function groupAdd(g, f) {
   g.to.add(f.toCode);
 }
 
-function liveFlightLeg(leg, q) {
+const cabinBags = (opts) => (opts.bags === "personal" ? 0 : 1);
+
+function liveFlightLeg(leg, q, opts) {
   const stops = q.stops === 0 ? "nonstop" : Number.isFinite(q.stops) ? `${q.stops} stop${q.stops > 1 ? "s" : ""}` : "";
   const head = leg.role === "main" ? "Flight" : "Short flight";
   return {
@@ -705,8 +713,9 @@ function liveFlightLeg(leg, q) {
     stops: q.stops,
     airline: q.airline,
     flightNumber: q.flightNumber,
-    note: liveNote(q),
+    note: liveNote(q) + (cabinBags(opts) ? " · priced with 1 cabin bag" : ""),
     ...(q.departs && q.arrives ? { departs: q.departs, arrives: q.arrives } : {}),
+    ...(q.bagNotes?.length ? { bagNotes: q.bagNotes } : {}),
   };
 }
 
@@ -794,7 +803,7 @@ function applyQuotes(it, byKey, opts, ctx) {
 
   const legs = [];
   for (const l of it.legs) {
-    if (l.kind === "flight" && pick.has(l.id)) legs.push(liveFlightLeg(l, pick.get(l.id)));
+    if (l.kind === "flight" && pick.has(l.id)) legs.push(liveFlightLeg(l, pick.get(l.id), opts));
     else if (l.kind === "tax" && pick.get(l.forFlight)?.taxesIncluded) continue; // live all-in fare already has the taxes
     else if (spare.get(l)) legs.push({ ...l, minutes: l.minutes + spare.get(l) });
     else legs.push(l);
@@ -925,7 +934,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
           live.requested += g.pairs.size;
           try {
             // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
-            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round });
+            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, bags: cabinBags(opts) });
             for (const r of rows || []) {
               if (!Number.isFinite(r?.fare)) continue;
               byKey.set(`${g.date}|${r.from}-${r.to}`, r);
