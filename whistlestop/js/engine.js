@@ -647,9 +647,11 @@ function hintMessage(hint, opts) {
   const b = hint.best;
   const onward = b.mode === "air" ? `fly to ${b.landing.name}` : `continue to ${b.landing.name}`;
   const h = `${hint.hours}h`;
-  if (hint.side === "before") return `Nothing connects within ${opts.beforeHours}h of ${shortName(opts.origin)}. Allow ${h} of travel and you could reach ${b.jumpOff.name} and ${onward}.`;
-  if (hint.side === "after") return `Nothing connects within ${opts.afterHours}h of ${shortName(opts.destination)}. Allow ${h} and you could land at ${b.landing.name} (from ${b.jumpOff.name}).`;
-  return `Nothing connects with ${opts.beforeHours}h at the start / ${opts.afterHours}h at the end. Allow about ${h} at both ends and ${b.jumpOff.name} → ${b.landing.name} becomes possible.`;
+  // This is about TRAVEL TIME to the airport, not about whether flights exist: the point you
+  // typed is a spot (usually the city centre), and airports are further from it than the limit.
+  if (hint.side === "before") return `No route fits within ${opts.beforeHours}h of travel from ${shortName(opts.origin)} to a departure point. Allow ${h} of travel and you could reach ${b.jumpOff.name} and ${onward}.`;
+  if (hint.side === "after") return `No airport is within ${opts.afterHours * 60 < 60 ? `${Math.round(opts.afterHours * 60)}m` : `${opts.afterHours}h`} of travel from ${shortName(opts.destination)} (airports are a drive from the city centre, so this limit rules them all out — it isn't that there are no flights). Allow ${h} to finish and you could land at ${b.landing.name}.`;
+  return `No route fits with ${opts.beforeHours}h of travel at the start and ${opts.afterHours}h at the end. Allow about ${h} at both ends and ${b.jumpOff.name} → ${b.landing.name} becomes possible.`;
 }
 
 // ---- live pricing -------------------------------------------------------------------------------

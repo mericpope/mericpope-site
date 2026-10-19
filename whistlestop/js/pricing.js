@@ -21,10 +21,14 @@ export function rand01(seed) {
 
 // ---- Flights ----------------------------------------------------------
 // One-way economy, USD, before departure taxes.
+// Airports with a legal range cap on non-stop flights: LaGuardia 1,500 mi, Washington National 1,250 mi.
+const PERIMETER = [["LGA", 2414], ["DCA", 2012]];
+
 export function flightEstimate(A, B, date) {
   const d = haversineKm(A, B);
   if (d < 120) return null;
   if (d > 4800 && !(A.longHaul && B.longHaul)) return null; // no intercontinental service
+  for (const [code, maxKm] of PERIMETER) if ((A.code === code || B.code === code) && d > maxKm) return null;
   if (A.tier === 3 && B.tier === 3 && d > 1200) return null; // two small fields: no long routes
 
   const base = d < 1500 ? 55 + 0.085 * d : d < 4800 ? 95 + 0.05 * d : 170 + 0.045 * d;
