@@ -71,7 +71,7 @@ export function normalize(input) {
     // Bags per traveller. "carryon" re-prices every flight WITH a cabin bag (real data from the
     // price provider). Checked bags: the provider has no setting or fee amounts for them, so
     // they are never guessed - trips are flagged instead (see itin.checkedBags).
-    breadth: input.breadth === "wide" ? "wide" : "standard",
+    breadth: input.breadth === "standard" || input.breadth === "wide" ? input.breadth : "all",
     bags: ["personal", "carryon", "checked1", "checked2"].includes(input.bags) ? input.bags : "personal",
   };
 }
@@ -582,7 +582,7 @@ export async function search(rawInput, data, deps = {}) {
   }
 
   // Live pricing (optional). Estimates pick the candidates; real quotes decide.
-  const live = { active: false, requested: 0, priced: 0, hotelsPriced: 0, rejectedByTimetable: 0, error: null };
+  const live = { active: false, calls: 0, requested: 0, priced: 0, hotelsPriced: 0, rejectedByTimetable: 0, error: null };
   const byScore = (x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes;
   if (deps.livePrices) await refineFlights(itineraries, opts, ctx, deps, live);
   if (deps.liveHotel) await refineHotels(itineraries, opts, ctx, deps, live);
@@ -682,16 +682,22 @@ function addDays(iso, n) {
 
 // Pairs of airports to price, per role. Providers charge per search, so each group
 // goes in ONE batched request, capped (what a request can carry / what we can afford).
-const GROUP_LIMITS = { main: { pairs: 20, airports: 8 }, hubmain: { pairs: 32, airports: 8 }, pre: { pairs: 20, airports: 8 }, post: { pairs: 16, airports: 8 } };
-// How many hub airports get their long-haul fare priced (8 per search). Wide costs about 4 more searches.
-const BREADTH_HUBS = { standard: 16, wide: 48 };
-const HOP_HUBS_PRICED = 5; // hubs (cheapest real long-haul first) that then get their repositioning flight priced
-const HOP_STARTS = 4; // origin-side airports to try a repositioning flight from
-const HOP_HUBS = 4; // hub airports to try repositioning flights to
+const GROUP_LIMITS = { main: { pairs: 40, airports: 8 }, hubmain: { pairs: 40, airports: 8 }, pre: { pairs: 40, airports: 8 }, post: { pairs: 16, airports: 8 } };
+// Coverage. "all" (the default) leaves nothing out: every reachable airport and every hub with a real
+// long-haul fare is priced, 8 airports per live search. The smaller settings exist for tests and
+// for keeping a cost ceiling, and are not offered in the page.
+const COVERAGE = {
+  standard: { hubs: 16, hopHubs: 5, hopStarts: 4, plain: 10, spill: false },
+  wide: { hubs: 48, hopHubs: 5, hopStarts: 4, plain: 10, spill: false },
+  all: { hubs: Infinity, hopHubs: 40, hopStarts: 8, plain: Infinity, spill: true },
+};
+const SMALL_AIRPORTS_PRICED = 8; // tier-3 fields: one batch's worth (they rarely have service)
+const HOP_HUBS = 4; // hub airports to try repositioning flights to AFTER the long flight (opt-in side)
+const HOP_STARTS = 4; // starting airports for repositioning flights AFTER the long flight
 
 // One request per (role, DAY): a repositioning flight before a hotel night flies the day before.
-function newGroup(name, date, round = 1) {
-  return { name, date, round, limits: GROUP_LIMITS[name], pairs: new Map(), from: new Set(), to: new Set() };
+function newGroup(name, date, round = 1, batch = 0) {
+  return { name, date, round, batch, limits: GROUP_LIMITS[name], pairs: new Map(), from: new Set(), to: new Set() };
 }
 function groupFits(g, f) {
   if (g.pairs.has(`${f.fromCode}-${f.toCode}`)) return true;
@@ -851,7 +857,8 @@ function attachTimes(it) {
 }
 
 async function refineFlights(itineraries, opts, ctx, deps, live) {
-  const K = deps.liveTopK ?? 10;
+  const cov = COVERAGE[opts.breadth] || COVERAGE.all;
+  const K = deps.liveTopK ?? cov.plain;
   const air = itineraries.filter((i) => i.mode === "air").sort((x, y) => x.score - y.score);
   const groups = new Map(); // `${role}@${day}#${round}` -> group
   // With `spill`, a full group overflows into another request (8 airports per search) - used for
@@ -862,7 +869,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
       const k = n ? `${base}~${n}` : base;
       let g = groups.get(k);
       if (!g) {
-        g = newGroup(name, f.date, round);
+        g = newGroup(name, f.date, round, n);
         groups.set(k, g);
         return g;
       }
@@ -881,8 +888,9 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     const now = flights.filter((f) => f.side !== "post" && f.side !== "pre");
     // a flight "the day before" can't be priced when that day is already past
     if (!force && now.some((f) => f.date && f.date < today)) return false;
-    if (!force && !now.every((f) => groupFits(groupOf(f), f))) return false;
-    for (const f of now) groupAdd(groupOf(f), f);
+    if (!force && !cov.spill && !now.every((f) => groupFits(groupOf(f), f))) return false;
+    // with full coverage a full request simply overflows into another (8 airports per search)
+    for (const f of now) groupAdd(groupOf(f, 1, f.side, cov.spill), f);
     for (const f of flights) if (f.side === "post") deferred.push(f);
     return true;
   };
@@ -897,10 +905,16 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
   const candidates = dedupe(air);
   const isSmall = (it) => [it.jumpOff, it.landing, it.pre.pos?.from, it.post.pos?.from].some((h) => h && h.tier === 3);
   let smallPairs = 0;
+  const smallAirports = new Set();
   for (const it of candidates) {
     if (chosen >= K + 1) break;
     if (it.pre.pos || it.post.pos) continue;
-    if (isSmall(it) && smallPairs >= 2) continue;
+    if (cov.spill) {
+      // every airport, except that tier-3 fields (rarely any service) share one batch's worth
+      const smalls = [it.jumpOff, it.landing].filter((h) => h.tier === 3).map((h) => h.id);
+      if (smalls.length && [...smalls, ...smallAirports].filter((v, i, a) => a.indexOf(v) === i).length > SMALL_AIRPORTS_PRICED) continue;
+      smalls.forEach((s) => smallAirports.add(s));
+    } else if (isSmall(it) && smallPairs >= 2) continue;
     if (tryAdd(it, false)) {
       chosen++;
       if (isSmall(it)) smallPairs++;
@@ -919,7 +933,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     const id = it.pre.end.id;
     if (!hubScore.has(id) || it.score < hubScore.get(id)) hubScore.set(id, it.score);
   }
-  const sweepHubs = new Set([...hubScore.entries()].sort((a, b) => a[1] - b[1]).slice(0, BREADTH_HUBS[opts.breadth]).map(([id]) => id));
+  const sweepHubs = new Set([...hubScore.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.hubs).map(([id]) => id));
   for (const it of preHops) {
     if (!sweepHubs.has(it.pre.end.id)) continue;
     const f = it.legs.find((l) => l.kind === "flight" && l.role === "main");
@@ -955,9 +969,10 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
         .map(async ([k, g]) => {
           done.add(k);
           live.requested += g.pairs.size;
+          live.calls++;
           try {
             // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
-            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, bags: cabinBags(opts) });
+            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, batch: g.batch, bags: cabinBags(opts) });
             for (const r of rows || []) {
               if (!Number.isFinite(r?.fare)) continue;
               byKey.set(`${g.date}|${r.from}-${r.to}`, r);
@@ -995,18 +1010,18 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     const q = byKey.get(`${f.date}|${f.fromCode}-${f.toCode}`);
     if (q && (!hubFare.has(it.pre.end.id) || q.fare < hubFare.get(it.pre.end.id))) hubFare.set(it.pre.end.id, q.fare);
   }
-  const bestHubs = new Set([...hubFare.entries()].sort((a, b) => a[1] - b[1]).slice(0, HOP_HUBS_PRICED).map(([id]) => id));
+  const bestHubs = new Set([...hubFare.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.hopHubs).map(([id]) => id));
   const startOrder = new Map(); // starting airport -> its ground minutes (nearest first)
   for (const it of preHops) {
     const m = it.pre.base.reduce((s, l) => s + l.minutes, 0);
     if (!startOrder.has(it.pre.pos.from.id) || m < startOrder.get(it.pre.pos.from.id)) startOrder.set(it.pre.pos.from.id, m);
   }
-  const bestStarts = new Set([...startOrder.entries()].sort((a, b) => a[1] - b[1]).slice(0, HOP_STARTS).map(([id]) => id));
+  const bestStarts = new Set([...startOrder.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.hopStarts).map(([id]) => id));
   for (const it of preHops) {
     if (!bestHubs.has(it.pre.end.id) || !bestStarts.has(it.pre.pos.from.id)) continue;
     const hop = it.legs.find((l) => l.kind === "flight" && l.side === "pre");
     if (hop.date && hop.date < today) continue; // "the day before" is already past
-    if (groupFits(groupOf(hop, 2), hop)) groupAdd(groupOf(hop, 2), hop);
+    if (cov.spill || groupFits(groupOf(hop, 2), hop)) groupAdd(groupOf(hop, 2, "pre", cov.spill), hop);
   }
   await priceGroups();
 

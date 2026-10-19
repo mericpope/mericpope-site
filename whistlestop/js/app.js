@@ -8,7 +8,7 @@ import { LIVE_PROVIDER_URL } from "./config.js";
 const $ = (id) => document.getElementById(id);
 const els = {
   form: $("form"), from: $("from"), to: $("to"), date: $("date"), before: $("before"), after: $("after"),
-  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"), bags: $("bags"), breadth: $("breadth"),
+  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"), bags: $("bags"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"),
 };
 const STORE = "whistlestop:form:v1";
@@ -43,7 +43,7 @@ function saveForm() {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
       overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
-      rank: els.rank.value, bags: els.bags.value, breadth: els.breadth.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
+      rank: els.rank.value, bags: els.bags.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
     }));
   } catch { /* storage optional */ }
 }
@@ -61,7 +61,7 @@ function restoreForm() {
   if (s.date && s.date >= els.date.min) els.date.value = s.date;
   els.before.value = s.before ?? 3; els.after.value = s.after ?? 1.5;
   els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.positioningEnd.checked = s.positioningEnd === true; els.owncar.checked = !!s.owncar;
-  els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4; els.rank.value = s.rank ?? "cash"; els.breadth.value = s.breadth === "wide" ? "wide" : "standard"; els.bags.value = ["personal", "carryon", "checked1", "checked2"].includes(s.bags) ? s.bags : "personal";
+  els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4; els.rank.value = s.rank ?? "cash"; els.bags.value = ["personal", "carryon", "checked1", "checked2"].includes(s.bags) ? s.bags : "personal";
   if (Array.isArray(s.modes)) document.querySelectorAll('input[name="mode"]').forEach((i) => { i.checked = s.modes.includes(i.value); });
 }
 
@@ -218,7 +218,7 @@ function noticeHtml(res) {
   if (lv?.active) {
     const hotels = lv.hotelsPriced ? ` and ${lv.hotelsPriced} hotel rate${lv.hotelsPriced > 1 ? "s" : ""}` : "";
     const dropped = res.stats.unverified ? ` ${num(res.stats.unverified)} other route${res.stats.unverified > 1 ? "s" : ""} couldn’t be priced with a real quote, so ${res.stats.unverified > 1 ? "they aren’t" : "it isn’t"} shown.` : "";
-    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}. Every flight shown is a real quote with its flight number.${dropped} Taxis, trains, buses, ferries and any hotel without a live rate are estimates (marked EST) — there is no real-time source for them.</div>`;
+    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""} in ${lv.calls} live request${lv.calls > 1 ? "s" : ""}${hotels}. Every flight shown is a real quote with its flight number.${dropped} Taxis, trains, buses, ferries and any hotel without a live rate are estimates (marked EST) — there is no real-time source for them.</div>`;
   }
   const why = lv?.error
     ? `Live flight prices couldn’t be fetched right now (${esc(lv.error)}). This is most often the site’s daily limit on live searches being used up — it resets at midnight UTC.`
@@ -275,7 +275,7 @@ async function livePrices(pairs, date, info = {}) {
     to: [...new Set(pairs.map((p) => p.to))].join(","),
     date,
     // the main long-haul grid may spend a couple of extra lookups filling gaps; positioning hops never do
-    fill: info.group === "main" && info.round !== 2 ? "1" : "0",
+    fill: info.group === "main" && info.round !== 2 && !info.batch ? "1" : "0",
     bags: String(info.bags ? 1 : 0),
     pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
@@ -314,7 +314,7 @@ function queryFromForm() {
     origin: places.origin, destination: places.destination, date: els.date.value,
     beforeHours: els.before.value, afterHours: els.after.value, modes: modes(),
     overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, ownCar: els.owncar.checked,
-    valuePerHour: els.value.value, pointsCents: els.cents.value, rankBy: els.rank.value, bags: els.bags.value, breadth: els.breadth.value,
+    valuePerHour: els.value.value, pointsCents: els.cents.value, rankBy: els.rank.value, bags: els.bags.value,
   };
 }
 

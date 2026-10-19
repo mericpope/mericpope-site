@@ -54,13 +54,6 @@
         <label class="chip"><input type="checkbox" name="mode" value="ferry" checked /><span>Ferries</span></label>
       </fieldset>
 
-      <label class="field breadth">
-        <span>How many airports to check <em>(live searches are limited)</em></span>
-        <select id="breadth">
-          <option value="standard">Standard — the 16 most likely hub airports (about 5 live searches)</option>
-          <option value="wide">Wide — about 50 hub airports across the region, e.g. Geneva (about 10 live searches)</option>
-        </select>
-      </label>
       <label class="field bags">
         <span>Bags <em>per traveller</em></span>
         <select id="bags">
@@ -101,6 +94,7 @@
       </details>
 
       <button id="go" type="submit" class="primary">Find my whistlestop</button>
+      <p class="help cost">Every search checks <b>every</b> reachable airport and every hub with a real fare, so it uses roughly 10–20 live searches.</p>
     </form>
 
     <div id="status" role="status" aria-live="polite"></div>
