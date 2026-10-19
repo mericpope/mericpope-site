@@ -6,7 +6,7 @@
 //
 // After deploying the Worker, put its URL here, e.g.
 //   export const LIVE_PROVIDER_URL = "https://whistlestop-api.YOURNAME.workers.dev";
-const DEPLOYED = null;
+const DEPLOYED = "https://whistlestop-api.mericpope.workers.dev";
 
 // Developer convenience: on localhost only, ?live=http://localhost:8787 points
 // the page at a local proxy without editing this file. Ignored everywhere else.

@@ -202,7 +202,7 @@ async function livePrices(pairs, date) {
     from: [...new Set(pairs.map((p) => p.from))].join(","),
     to: [...new Set(pairs.map((p) => p.to))].join(","),
     date,
-    pairs: pairs.map((p) => `${p.from}-${p.to}`).join(","),
+    pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
   const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
   const body = await res.json().catch(() => ({}));

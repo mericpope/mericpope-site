@@ -188,6 +188,16 @@ function finish(itin, opts) {
   return itin;
 }
 
+const hoursMinutes = (min) => (Number.isFinite(min) ? `${Math.floor(min / 60)}h${min % 60 ? ` ${Math.round(min % 60)}m` : ""}` : "much longer");
+
+function liveNote(live) {
+  const base = live.taxesIncluded ? "Price includes taxes & fees" : "Taxes added separately";
+  const s = live.slowerCheaper;
+  if (!s) return base;
+  const stops = s.stops ? `, ${s.stops} stop${s.stops > 1 ? "s" : ""}` : "";
+  return `${base} · a cheaper $${s.fare} option exists but takes ${hoursMinutes(s.minutes)}${stops}`;
+}
+
 function airItinerary(pre, post, opts, ctx, live) {
   const A = pre.end;
   const B = post.end;
@@ -209,7 +219,7 @@ function airItinerary(pre, post, opts, ctx, live) {
   legs.push({
     kind: "flight", label: flightLabel, from: A.name, to: B.name, fromCode: A.code, toCode: B.code, fromCity: A.city, toCity: B.city,
     km: est.km, minutes, cost: fare, source,
-    stops: live?.stops, note: live ? (live.taxesIncluded ? "Price includes taxes & fees" : "Taxes added separately") : undefined,
+    stops: live?.stops, note: live ? liveNote(live) : undefined,
   });
   if (taxes > 0) {
     legs.push({
@@ -345,7 +355,8 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     if (wanted.has(key)) return;
     const fits = (fromSet.has(it.jumpOff.code) || fromSet.size < MAX_AIRPORTS) && (toSet.has(it.landing.code) || toSet.size < MAX_AIRPORTS);
     if (!fits && !force) return;
-    wanted.set(key, { from: it.jumpOff.code, to: it.landing.code });
+    // expected = our own flight-time estimate, sent as a physics sanity check
+    wanted.set(key, { from: it.jumpOff.code, to: it.landing.code, expected: flightEstimate(it.jumpOff, it.landing, ctx.date)?.minutes });
     fromSet.add(it.jumpOff.code);
     toSet.add(it.landing.code);
   };
@@ -386,7 +397,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
 // itinerary that uses the same hub/side so numbers stay consistent.
 async function refineHotels(itineraries, opts, ctx, deps, live) {
   if (!ctx.date) return;
-  const N = deps.liveHotelTop ?? 6;
+  const N = deps.liveHotelTop ?? 3; // each lookup costs a search
   const pool = (live.active ? itineraries.filter(isVerified) : itineraries)
     .filter((i) => i.hotelNights > 0)
     .sort((x, y) => x.score - y.score);
