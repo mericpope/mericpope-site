@@ -14,7 +14,7 @@
 // leaving from your local hub.
 //
 // Pure ESM - runs in the browser and under `node --test`.
-import { groundLeg, haversineKm, round2 } from "./geo.js";
+import { groundLeg, groundMinutes, haversineKm, round2 } from "./geo.js";
 import { flightEstimate, linkEstimate, hotelEstimate, pointsEstimate } from "./pricing.js";
 
 export const MODES = ["air", "rail", "bus", "ferry"];
@@ -120,26 +120,103 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx) {
     if (g.minutes <= windowMin) keepBest(best, makeChain([g], A, "direct", ctx, noHotelMin));
   }
 
-  // Via one rail/bus/ferry ride, then onward to an airport.
-  for (const mode of ctx.transitModes) {
+  // Via one or more rail/bus/ferry rides (up to MAX_RIDES, with a change between
+  // each), then onward to an airport. E.g. Cardiff -> train -> Paddington ->
+  // Heathrow Express -> Heathrow, or Cardiff -> train -> Paddington -> tube ->
+  // St Pancras -> Eurostar -> Paris -> CDG.
+  //
+  // Search: breadth-first by number of rides. At each hub we keep only the
+  // non-dominated (cost, minutes) labels, so the work stays small.
+  if (ctx.transitModes.length) {
+    const allowed = new Set(ctx.transitModes);
+    let ready = new Map(); // hubId -> labels: standing at a hub, able to board
     for (const S of ctx.hubs) {
-      if (S.type !== mode) continue;
+      if (!allowed.has(S.type)) continue;
       const g1 = ground(point, S);
       if (g1.minutes > windowMin) continue;
-      for (const { other: S2, link } of ctx.adj.get(S.id) || []) {
-        if (link.mode !== mode) continue;
-        const ride = rideLeg(link, S, S2, ctx.date);
-        if (g1.minutes + ride.minutes > windowMin) continue;
-        for (const A of ctx.airports) {
-          if (!makesProgress(S, S2, A)) continue;
-          const g2 = ground(S2, A);
-          if (g1.minutes + ride.minutes + g2.minutes > windowMin) continue;
-          keepBest(best, makeChain([g1, ride, g2], A, "transit", ctx, noHotelMin));
+      addLabel(ready, S.id, { minutes: g1.minutes, cost: g1.cost, legs: [g1], first: S });
+    }
+
+    for (let depth = 1; depth <= MAX_RIDES && ready.size; depth++) {
+      const arrived = new Map(); // hubId -> labels: just got off a ride here
+      for (const [hubId, labels] of ready) {
+        const H = ctx.hubsById.get(hubId);
+        for (const L of labels) {
+          for (const { other: H2, link } of ctx.adj.get(hubId) || []) {
+            if (!allowed.has(link.mode)) continue;
+            const ride = rideLeg(link, H, H2, ctx.date);
+            const minutes = L.minutes + ride.minutes;
+            if (minutes > windowMin) continue;
+            addLabel(arrived, H2.id, { minutes, cost: L.cost + ride.cost, legs: [...L.legs, ride], first: L.first });
+          }
         }
       }
+
+      // Finish: from where each ride ends, onward to an airport.
+      for (const [hubId, labels] of arrived) {
+        const H2 = ctx.hubsById.get(hubId);
+        for (const L of labels) {
+          for (const A of ctx.airports) {
+            if (!makesProgress(L.first, H2, A)) continue;
+            const g2 = ground(H2, A);
+            if (L.minutes + g2.minutes > windowMin) continue;
+            keepBest(best, makeChain([...L.legs, g2], A, "transit", ctx, noHotelMin));
+          }
+        }
+      }
+
+      // Or change to another hub nearby and ride again.
+      if (depth === MAX_RIDES) break;
+      const next = new Map();
+      for (const [hubId, labels] of arrived) {
+        const H2 = ctx.hubsById.get(hubId);
+        for (const H3 of nearbyHubs(ctx, H2)) {
+          if (!allowed.has(H3.type)) continue;
+          const t = transferLeg(H2, H3);
+          for (const L of labels) {
+            const minutes = L.minutes + t.minutes;
+            if (minutes > windowMin) continue;
+            addLabel(next, H3.id, { minutes, cost: L.cost + t.cost, legs: [...L.legs, t], first: L.first });
+          }
+        }
+      }
+      ready = next;
     }
   }
   return [...best.values()];
+}
+
+// ---- multi-ride helpers ---------------------------------------------------
+const MAX_RIDES = 3;
+const TRANSFER_KM = 15; // how far apart two stations can be and still count as "a change in the same city"
+
+// Keep only non-dominated (minutes, cost) labels per hub.
+function addLabel(map, hubId, label) {
+  const list = map.get(hubId) || [];
+  if (list.some((l) => l.minutes <= label.minutes && l.cost <= label.cost)) return;
+  const kept = list.filter((l) => !(label.minutes <= l.minutes && label.cost <= l.cost));
+  kept.push(label);
+  map.set(hubId, kept);
+}
+
+function nearbyHubs(ctx, hub) {
+  ctx.nearCache ??= new Map();
+  if (!ctx.nearCache.has(hub.id)) {
+    ctx.nearCache.set(hub.id, ctx.hubs.filter((h) => h.id === hub.id || haversineKm(hub, h) <= TRANSFER_KM));
+  }
+  return ctx.nearCache.get(hub.id);
+}
+
+// A change between two hubs in the same city: same hub = change platforms;
+// otherwise a metro/taxi blend.
+function transferLeg(a, b) {
+  if (a.id === b.id) return { kind: "ground", label: "Change trains", from: a.name, to: b.name, minutes: 12, cost: 0, source: "estimate" };
+  const km = haversineKm(a, b);
+  if (km < 0.3) return { kind: "ground", label: "Walk", from: a.name, to: b.name, km, minutes: 5, cost: 0, source: "estimate" };
+  return {
+    kind: "ground", label: "Local transfer (metro/taxi)", from: a.name, to: b.name, km,
+    minutes: groundMinutes(km) + 8, cost: round2(3 + 0.9 * km), source: "estimate",
+  };
 }
 
 function chainsToStations(point, mode, windowMin, noHotelMin, ctx) {
@@ -313,6 +390,20 @@ export async function search(rawInput, data, deps = {}) {
   const picked = dedupe(pool);
   const best = picked[0] || null;
 
+  const warnings = warn(pool, opts, ctx, origin, destination, preWindow, postWindow, live);
+
+  // Nothing found: don't just say so - find the smallest change that makes a
+  // route appear (probing wider windows with the same estimate model).
+  let hint = null;
+  if (!best && !deps._probe) {
+    hint = await findHint(rawInput, data, opts);
+    if (hint) {
+      // a concrete suggestion replaces the generic "none are linked" sentence
+      for (let i = warnings.length - 1; i >= 0; i--) if (/none are linked/.test(warnings[i])) warnings.splice(i, 1);
+      warnings.unshift(hintMessage(hint, opts));
+    }
+  }
+
   return {
     input: opts,
     best,
@@ -322,14 +413,46 @@ export async function search(rawInput, data, deps = {}) {
     savings: best && baseline ? round2(baseline.totalCost - best.totalCost) : null,
     minutesSaved: best && baseline ? baseline.travelMinutes - best.travelMinutes : null,
     live,
+    hint,
     stats: {
       itineraries: itineraries.length,
       unverified: itineraries.length - pool.length,
       hubsNearOrigin: countHubs(origin, preWindow, opts, ctx),
       hubsNearDestination: countHubs(destination, postWindow, opts, ctx),
     },
-    warnings: warn(pool, opts, ctx, origin, destination, preWindow, postWindow, live),
+    warnings,
   };
+}
+
+// ---- "nothing found" help -------------------------------------------------
+const shortName = (p) => String(p?.name || "").split(",")[0].trim() || "there";
+
+// Smallest widening that yields a route: first the "before" window, then the
+// "after" window, then both together.
+async function findHint(rawInput, data, opts) {
+  const probe = async (before, after) => (await search({ ...rawInput, beforeHours: before, afterHours: after }, data, { _probe: true })).best;
+  for (let h = opts.beforeHours + 0.5; h <= 12; h += 0.5) {
+    const b = await probe(h, opts.afterHours);
+    if (b) return { side: "before", hours: h, best: b };
+  }
+  for (let h = opts.afterHours + 0.5; h <= 12; h += 0.5) {
+    const b = await probe(opts.beforeHours, h);
+    if (b) return { side: "after", hours: h, best: b };
+  }
+  for (let h = Math.max(opts.beforeHours, opts.afterHours) + 1; h <= 12; h += 1) {
+    const b = await probe(h, h);
+    if (b) return { side: "both", hours: h, best: b };
+  }
+  return null;
+}
+
+function hintMessage(hint, opts) {
+  const b = hint.best;
+  const onward = b.mode === "air" ? `fly to ${b.landing.name}` : `continue to ${b.landing.name}`;
+  const h = `${hint.hours}h`;
+  if (hint.side === "before") return `Nothing connects within ${opts.beforeHours}h of ${shortName(opts.origin)}. Allow ${h} "before" and you could reach ${b.jumpOff.name} and ${onward}.`;
+  if (hint.side === "after") return `Nothing connects within ${opts.afterHours}h of ${shortName(opts.destination)}. Allow ${h} "after" and you could land at ${b.landing.name} (from ${b.jumpOff.name}).`;
+  return `Nothing connects with ${opts.beforeHours}h before / ${opts.afterHours}h after. Allow about ${h} at both ends and ${b.jumpOff.name} → ${b.landing.name} becomes possible.`;
 }
 
 const isVerified = (it) => it.mode !== "air" || it.legs.some((l) => l.kind === "flight" && l.source === "live");
@@ -449,9 +572,18 @@ function warn(itineraries, opts, ctx, origin, destination, preWindow, postWindow
   else if (live.requested > 0 && live.priced === 0) out.push("The live price provider returned no fares for these routes — showing estimates instead.");
   const a = countHubs(origin, preWindow, opts, ctx);
   const b = countHubs(destination, postWindow, opts, ctx);
-  if (a === 0) out.push("No supported hubs found within your 'before' window of the origin — try more hours or more modes, or the area may not be in the built-in dataset yet.");
-  if (b === 0) out.push("No supported hubs found within your 'after' window of the destination — try more hours or more modes, or the area may not be in the built-in dataset yet.");
-  if (a > 0 && b > 0 && itineraries.length === 0) out.push("Hubs were found on both ends but no route connects them with the selected modes.");
+  const nearest = (point) =>
+    ctx.hubs
+      .filter((h) => opts.modes.has(h.type))
+      .map((h) => ({ h, m: groundLeg(point, h, { ownCar: ctx.ownCar }).minutes }))
+      .filter((x) => x.m <= 12 * 60) // beyond ~12h by road it's just not this area
+      .sort((x, y) => x.m - y.m)
+      .slice(0, 3)
+      .map((x) => `${x.h.name} (${hoursMinutes(x.m)} by road)`)
+      .join(", ");
+  if (a === 0) out.push(`No departure point within ${opts.beforeHours}h of ${shortName(origin)}. Nearest in the built-in data: ${nearest(origin) || "none — this area isn't covered yet"}.`);
+  if (b === 0) out.push(`No arrival point within ${opts.afterHours}h of ${shortName(destination)}. Nearest in the built-in data: ${nearest(destination) || "none — this area isn't covered yet"}.`);
+  if (a > 0 && b > 0 && itineraries.length === 0) out.push("Departure and arrival points were found, but none are linked by the selected travel modes (flights need an airport at both ends; trains, buses and ferries need stations on a known route).");
   return out;
 }
 
@@ -459,11 +591,13 @@ function warn(itineraries, opts, ctx, origin, destination, preWindow, postWindow
 // ends, no hotel. Falls back to the closest-hub itinerary when nothing local
 // connects.
 function pickBaseline(itineraries, opts) {
-  const direct = itineraries.filter((i) => i.pre.kind === "direct" && i.post.kind === "direct");
-  const local = direct.filter((i) => i.pre.minutes <= LOCAL_MINUTES && i.post.minutes <= LOCAL_MINUTES && !i.pre.needsHotel && !i.post.needsHotel);
+  // "Local" is about TIME, not method: reaching Heathrow by Heathrow Express is
+  // still just leaving from your local hub. (Jump-offs like Paris-via-Eurostar
+  // take far longer, so they never qualify.)
+  const local = itineraries.filter((i) => i.pre.minutes <= LOCAL_MINUTES && i.post.minutes <= LOCAL_MINUTES && !i.pre.needsHotel && !i.post.needsHotel);
   if (local.length) return { ...local.sort((x, y) => x.score - y.score)[0], fallback: false };
-  if (direct.length) {
-    const nearest = [...direct].sort((x, y) => x.pre.minutes + x.post.minutes - (y.pre.minutes + y.post.minutes) || x.score - y.score)[0];
+  if (itineraries.length) {
+    const nearest = [...itineraries].sort((x, y) => x.pre.minutes + x.post.minutes - (y.pre.minutes + y.post.minutes) || x.score - y.score)[0];
     return { ...nearest, fallback: true };
   }
   return null;

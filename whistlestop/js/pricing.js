@@ -38,22 +38,30 @@ export function flightEstimate(A, B, date) {
 }
 
 // ---- Rail / bus / ferry routes ---------------------------------------
-const SPEED_KMH = { highspeed: 190, intercity: 100, bus: 65, ferry: 24 };
-const DETOUR = { highspeed: 1.15, intercity: 1.15, bus: 1.25, ferry: 1.1 };
-const CHECKIN_MIN = { highspeed: 40, intercity: 15, bus: 15, ferry: 60 };
+// kinds: highspeed = Eurostar/TGV-class; fast = British/US mainline express;
+// intercity = ordinary long-distance rail; airport = airport express/shuttle;
+// bus; ferry. A route may override speed (`speedKmh`), boarding time (`checkin`)
+// and fare (`fare`, USD) when we know better than the per-kind averages.
+const SPEED_KMH = { highspeed: 190, fast: 130, intercity: 100, airport: 70, bus: 65, ferry: 24 };
+const DETOUR = { highspeed: 1.15, fast: 1.15, intercity: 1.15, airport: 1.2, bus: 1.25, ferry: 1.1 };
+const CHECKIN_MIN = { highspeed: 40, fast: 10, intercity: 15, airport: 5, bus: 15, ferry: 60 };
 
 export function linkEstimate(link, A, B) {
   const straight = haversineKm(A, B);
   const km = straight * DETOUR[link.kind];
-  const minutes = Math.round((km / SPEED_KMH[link.kind]) * 60 + (link.checkin ?? CHECKIN_MIN[link.kind]));
+  const speed = link.speedKmh ?? SPEED_KMH[link.kind];
+  const minutes = Math.round((km / speed) * 60 + (link.checkin ?? CHECKIN_MIN[link.kind]));
   const noise = 0.9 + 0.2 * rand01(`lk:${link.a}:${link.b}`);
 
   let fare;
-  if (link.kind === "highspeed") fare = Math.max(25, 0.19 * km);
+  if (link.fare != null) fare = link.fare;
+  else if (link.kind === "highspeed") fare = Math.max(25, 0.19 * km);
+  else if (link.kind === "fast") fare = Math.max(15, 0.18 * km);
   else if (link.kind === "intercity") fare = Math.max(12, 0.15 * km);
+  else if (link.kind === "airport") fare = Math.max(8, 0.35 * km);
   else if (link.kind === "bus") fare = Math.max(9, 0.07 * km);
   else fare = 18 + 0.45 * km; // ferry, foot passenger
-  fare = Math.round(fare * noise);
+  fare = Math.round(fare * (link.fare != null ? 1 : noise)); // a known fixed fare isn't jittered
 
   return { fare, minutes, km, source: "estimate" };
 }
