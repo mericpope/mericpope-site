@@ -680,8 +680,8 @@ const HOP_STARTS = 4; // origin-side airports to try a repositioning flight from
 const HOP_HUBS = 4; // hub airports to try repositioning flights to
 
 // One request per (role, DAY): a repositioning flight before a hotel night flies the day before.
-function newGroup(name, date) {
-  return { name, date, limits: GROUP_LIMITS[name], pairs: new Map(), from: new Set(), to: new Set() };
+function newGroup(name, date, round = 1) {
+  return { name, date, round, limits: GROUP_LIMITS[name], pairs: new Map(), from: new Set(), to: new Set() };
 }
 function groupFits(g, f) {
   if (g.pairs.has(`${f.fromCode}-${f.toCode}`)) return true;
@@ -698,11 +698,13 @@ function liveFlightLeg(leg, q) {
   const head = leg.role === "main" ? "Flight" : "Short flight";
   return {
     ...leg,
-    label: [head, q.airline, stops].filter(Boolean).join(" · ") + (leg.role === "main" ? "" : " (separate ticket)"),
+    label: [head, q.airline, q.flightNumber, stops].filter(Boolean).join(" · ") + (leg.role === "main" ? "" : " (separate ticket)"),
     minutes: q.minutes ?? leg.minutes,
     cost: q.fare,
     source: "live",
     stops: q.stops,
+    airline: q.airline,
+    flightNumber: q.flightNumber,
     note: liveNote(q),
     ...(q.departs && q.arrives ? { departs: q.departs, arrives: q.arrives } : {}),
   };
@@ -838,26 +840,32 @@ function attachTimes(it) {
 async function refineFlights(itineraries, opts, ctx, deps, live) {
   const K = deps.liveTopK ?? 10;
   const air = itineraries.filter((i) => i.mode === "air").sort((x, y) => x.score - y.score);
-  const groups = new Map(); // `${role}@${day}` -> group
-  const groupOf = (f) => {
-    const k = `${f.side}@${f.date}`;
-    if (!groups.has(k)) groups.set(k, newGroup(f.side, f.date));
+  const groups = new Map(); // `${role}@${day}#${round}` -> group
+  const groupOf = (f, round = 1) => {
+    const k = `${f.side}@${f.date}#${round}`;
+    if (!groups.has(k)) groups.set(k, newGroup(f.side, f.date, round));
     return groups.get(k);
   };
   const today = new Date().toISOString().slice(0, 10);
   const flightsOf = (it) => it.legs.filter((l) => l.kind === "flight");
-  // Flights AFTER the long one are dated from when the long flight really lands (an eastbound
-  // overnight flight lands the next day), which isn't known until it has been priced - so
-  // they wait for a second round.
+  // Two things wait for a second round, because they depend on real answers from the first:
+  //  - flights AFTER the long one: dated from when the long flight really lands (an eastbound
+  //    overnight flight lands the next day);
+  //  - the long flight FROM a repositioning hub: only worth pricing if there is a real flight
+  //    to that hub in the first place. (Pricing estimates for hubs nobody flies to is how you
+  //    end up showing flights, like Shannon to Newark, that don't exist.)
   const deferred = [];
+  const deferredMain = []; // { it, hop, main }
   const tryAdd = (it, force) => {
     const flights = flightsOf(it);
-    const now = flights.filter((f) => f.side !== "post");
+    const hopFirst = !!it.pre.pos;
+    const now = flights.filter((f) => f.side !== "post" && !(hopFirst && f.role === "main"));
     // a flight "the day before" can't be priced when that day is already past
     if (!force && now.some((f) => f.date && f.date < today)) return false;
     if (!force && !now.every((f) => groupFits(groupOf(f), f))) return false;
     for (const f of now) groupAdd(groupOf(f), f);
     for (const f of flights) if (f.side === "post") deferred.push(f);
+    if (hopFirst) deferredMain.push({ hop: flights.find((f) => f.side === "pre"), main: flights.find((f) => f.role === "main") });
     return true;
   };
 
@@ -917,7 +925,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
           live.requested += g.pairs.size;
           try {
             // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
-            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name });
+            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round });
             for (const r of rows || []) {
               if (!Number.isFinite(r?.fare)) continue;
               byKey.set(`${g.date}|${r.from}-${r.to}`, r);
@@ -946,7 +954,14 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
       if (l.kind === "hotel" && l.phase === "post") l.checkIn = landed;
     }
   }
-  for (const f of deferred) if (!(f.date && f.date < today) && groupFits(groupOf(f), f)) groupAdd(groupOf(f), f);
+  for (const f of deferred) if (!(f.date && f.date < today) && groupFits(groupOf(f, 2), f)) groupAdd(groupOf(f, 2), f);
+  // ...and the long flight from each hub that really has a hop flight, cheapest hop first.
+  const hopFare = (h) => byKey.get(`${h.hop.date}|${h.hop.fromCode}-${h.hop.toCode}`)?.fare;
+  for (const h of deferredMain.filter((x) => hopFare(x) !== undefined).sort((a, b) => hopFare(a) - hopFare(b))) {
+    const f = h.main;
+    if (byKey.has(`${f.date}|${f.fromCode}-${f.toCode}`)) continue; // already priced in round 1
+    if (groupFits(groupOf(f, 2), f)) groupAdd(groupOf(f, 2), f);
+  }
   await priceGroups();
 
   // Real quotes can show a trip is impossible (the hop lands after the long flight leaves,

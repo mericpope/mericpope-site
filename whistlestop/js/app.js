@@ -209,16 +209,23 @@ function noticeHtml(res) {
   const lv = res.live;
   if (lv?.active) {
     const hotels = lv.hotelsPriced ? ` and ${lv.hotelsPriced} hotel rate${lv.hotelsPriced > 1 ? "s" : ""}` : "";
-    const dropped = res.stats.unverified ? ` The most promising routes were priced live; the other ${num(res.stats.unverified)} can’t be ranked against real quotes, so only the best few are shown separately at the bottom, as estimates.` : "";
-    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}. Every ranked flight is a real quote.${dropped} Taxis, trains, buses and ferries are still estimates (marked EST).</div>`;
+    const dropped = res.stats.unverified ? ` ${num(res.stats.unverified)} other route${res.stats.unverified > 1 ? "s" : ""} couldn’t be priced with a real quote, so ${res.stats.unverified > 1 ? "they aren’t" : "it isn’t"} shown.` : "";
+    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}. Every flight shown is a real quote with its flight number.${dropped} Taxis, trains, buses, ferries and any hotel without a live rate are estimates (marked EST) — there is no real-time source for them.</div>`;
   }
   const why = lv?.error
     ? `Live flight prices couldn’t be fetched right now (${esc(lv.error)}). This is most often the site’s daily limit on live searches being used up — it resets at midnight UTC.`
     : "Live flight prices are switched off.";
-  return `<div class="notice alert"><b>Estimates only — not real prices.</b> ${why} What you see below comes from a rough built-in model (distance-based fares, approximate departure taxes), which is biased toward certain airports — so treat it as a shortlist of ideas, not a quote. Try again later for live results.</div>`;
+  return `<div class="notice alert"><b>No real prices available, so no flights are shown.</b> ${why} Whistlestop only shows flights it has a real quote for, rather than guess. Try again later.</div>`;
 }
 
 function render(res, date) {
+  // Real data only: with flights selected, nothing is shown unless live prices came back.
+  if (res.input.modes.has("air") && !res.live?.active) {
+    setStatus("", false);
+    els.notice.innerHTML = noticeHtml(res);
+    els.results.innerHTML = "";
+    return;
+  }
   els.notice.innerHTML = res.best || res.baseline ? noticeHtml(res) : "";
   const o = shortName(places.origin);
   const d = shortName(places.destination);
@@ -247,9 +254,6 @@ function render(res, date) {
       html += `<div class="more" hidden>${rest.map((i) => cardHtml(i, res, date)).join("")}</div><button type="button" class="more-btn" data-more>Show ${rest.length} more combination${rest.length > 1 ? "s" : ""}</button>`;
     }
   }
-  if (res.unverifiedOptions?.length) {
-    html += `<h2>Estimated only <small>— no live price for at least one flight, so not ranked</small></h2>${res.unverifiedOptions.map((i) => cardHtml(i, res, date)).join("")}`;
-  }
   if (res.warnings.length) html += `<div class="notice">${res.warnings.map(esc).join(" ")}</div>`;
   els.results.innerHTML = html;
 }
@@ -263,7 +267,7 @@ async function livePrices(pairs, date, info = {}) {
     to: [...new Set(pairs.map((p) => p.to))].join(","),
     date,
     // the main long-haul grid may spend a couple of extra lookups filling gaps; positioning hops never do
-    fill: info.group === "main" ? "2" : "0",
+    fill: info.group === "main" && info.round !== 2 ? "2" : "0",
     pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
   const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
