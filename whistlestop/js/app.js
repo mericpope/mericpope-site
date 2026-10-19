@@ -8,7 +8,7 @@ import { LIVE_PROVIDER_URL } from "./config.js";
 const $ = (id) => document.getElementById(id);
 const els = {
   form: $("form"), from: $("from"), to: $("to"), date: $("date"), before: $("before"), after: $("after"),
-  overnight: $("overnight"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"),
+  overnight: $("overnight"), positioning: $("positioning"), owncar: $("owncar"), value: $("value"), cents: $("cents"), rank: $("rank"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"),
 };
 const STORE = "whistlestop:form:v1";
@@ -42,7 +42,7 @@ function saveForm() {
   try {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
-      overnight: els.overnight.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
+      overnight: els.overnight.checked, positioning: els.positioning.checked, owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value,
       rank: els.rank.value, modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
     }));
   } catch { /* storage optional */ }
@@ -60,7 +60,7 @@ function restoreForm() {
   if (s.toPlace) toBox.setPlace(s.toPlace);
   if (s.date && s.date >= els.date.min) els.date.value = s.date;
   els.before.value = s.before ?? 3; els.after.value = s.after ?? 1.5;
-  els.overnight.checked = !!s.overnight; els.owncar.checked = !!s.owncar;
+  els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.owncar.checked = !!s.owncar;
   els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4; els.rank.value = s.rank ?? "cash";
   if (Array.isArray(s.modes)) document.querySelectorAll('input[name="mode"]').forEach((i) => { i.checked = s.modes.includes(i.value); });
 }
@@ -97,7 +97,25 @@ function totalsHtml(it, res) {
     ? `<div class="pts">Fly on points: ${num(it.points.points)} pts + ${money(it.points.fees)} taxes/fees ≈ ${money(it.pointsEffectiveCost)} all-in at ${res.input.pointsCents}¢/pt ${badge(it.points.source)}</div>`
     : "";
   return `<div class="totals"><span>Total door to door</span><span class="big">${money(it.totalCost)}</span></div>
-    <div class="pts">${dur(it.travelMinutes)} of travel${it.hotelNights ? ` + ${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""} in a hotel` : ""}</div>${pts}`;
+    <div class="pts">${dur(it.travelMinutes)} start to finish${waitNote(it)}${it.hotelNights ? ` + ${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""} in a hotel` : ""}</div>${pts}${ticketNote(it)}`;
+}
+
+const waitMinutes = (it) => it.legs.filter((l) => l.kind === "wait").reduce((s, l) => s + l.minutes, 0);
+const waitNote = (it) => { const w = waitMinutes(it); return w >= 30 ? ` (${dur(w)} of it waiting)` : ""; };
+
+function ticketNote(it) {
+  if (!it.separateTickets) return "";
+  return `<div class="pts"><b>Two separate tickets.</b> If the first flight is late or cancelled, the airline won’t rebook the second one — check the connection time and allow for collecting and re-checking bags.</div>`;
+}
+
+// "STN → MXP → JFK" for flights; the station names for trains, buses and ferries.
+function routeTitle(it) {
+  return it.route?.length ? it.route.join(" → ") : `${it.jumpOff.name} → ${it.landing.name}`;
+}
+function routeNames(it) {
+  if (!it.route?.length) return "";
+  const names = [it.pre.pos?.from, it.jumpOff, it.landing, it.post.pos?.from].filter(Boolean).map((h) => h.city || h.name);
+  return names.filter((n, i) => n !== names[i - 1]).join(" → ");
 }
 
 function chainSummary(it) {
@@ -105,7 +123,7 @@ function chainSummary(it) {
   for (const l of it.legs) {
     if (l.kind === "wait" || l.kind === "tax") continue;
     const txt = l.kind === "ground" ? "taxi" : l.kind === "flight" ? "flight" : l.kind === "hotel" ? "hotel" : l.label;
-    if (parts[parts.length - 1] !== txt) parts.push(txt);
+    if (l.kind === "flight" || parts[parts.length - 1] !== txt) parts.push(txt);
   }
   return parts.join(" → ");
 }
@@ -116,7 +134,7 @@ function directLabel(b) {
 }
 
 function sameAs(a, b) {
-  return a && b && a.mode === b.mode && a.jumpOff.id === b.jumpOff.id && a.landing.id === b.landing.id && a.pre.kind === b.pre.kind && a.post.kind === b.post.kind && a.totalCost === b.totalCost;
+  return a && b && a.mode === b.mode && a.jumpOff.id === b.jumpOff.id && a.landing.id === b.landing.id && (a.route || []).join(">") === (b.route || []).join(">") && a.totalCost === b.totalCost;
 }
 
 function comparison(it, res) {
@@ -125,7 +143,9 @@ function comparison(it, res) {
   if (sameAs(it, b)) return "This is also the direct option.";
   const diff = b.totalCost - it.totalCost;
   const dt = it.travelMinutes - b.travelMinutes;
-  const cost = diff >= 0.5 ? `<b class="savings">Saves ${money(diff)}</b>` : diff <= -0.5 ? `<b>Costs ${money(-diff)} more</b>` : "<b>Same price</b>";
+  const verified = res.live?.active && it.legs.filter((l) => l.kind === "flight").every((l) => l.source === "live");
+  const hedge = verified ? "" : " (estimate)";
+  const cost = diff >= 0.5 ? `<b class="savings">Saves ${money(diff)}${hedge}</b>` : diff <= -0.5 ? `<b>Costs ${money(-diff)} more${hedge}</b>` : `<b>Same price${hedge}</b>`;
   const time = Math.abs(dt) < 5 ? "same travel time" : dt > 0 ? `${dur(dt)} longer` : `${dur(-dt)} faster`;
   const perHour = diff > 0.5 && dt > 30 ? ` · ${money(diff / (dt / 60))} saved per extra hour` : "";
   return `${cost} vs. going direct (${esc(directLabel(b))}) · ${time}${perHour}`;
@@ -138,7 +158,8 @@ function heroHtml(res, date) {
     : comparison(it, res);
   return `<article class="hero">
     <div class="eyebrow">Best option</div>
-    <div class="headline"><span class="price">${money(it.totalCost)}</span><span class="route">${esc(it.jumpOff.name)} → ${esc(it.landing.name)}</span></div>
+    <div class="headline"><span class="price">${money(it.totalCost)}</span><span class="route">${esc(routeTitle(it))}</span></div>
+    <div class="split">${esc(routeNames(it))}</div>
     <div class="vs">${status}</div>
     ${stepsHtml(it, date)}
     ${totalsHtml(it, res)}
@@ -147,9 +168,11 @@ function heroHtml(res, date) {
 
 function cardHtml(it, res, date, { open = false, baseline = false, tag = "" } = {}) {
   const hotelTag = it.hotelNights ? `<span class="tagline hotel">+ ${it.hotelNights} hotel night${it.hotelNights > 1 ? "s" : ""}</span>` : "";
+  const sepTag = it.separateTickets ? `<span class="tagline sep">2 tickets</span>` : "";
+  const names = routeNames(it);
   return `<details class="card${baseline ? " baseline" : ""}"${open ? " open" : ""}>
     <summary>
-      <div><div class="t">${esc(it.jumpOff.name)} → ${esc(it.landing.name)}${hotelTag}${tag}</div><div class="m">${esc(chainSummary(it))}</div></div>
+      <div><div class="t">${esc(routeTitle(it))}${hotelTag}${sepTag}${tag}</div><div class="m">${names ? esc(names) + " · " : ""}${esc(chainSummary(it))}</div></div>
       <div class="p"><b>${money(it.totalCost)}</b><small>${dur(it.travelMinutes)}</small></div>
       <div class="m" style="grid-column:1/-1">${baseline ? "The comparison point: leaving from your local hub." : comparison(it, res)}</div>
     </summary>
@@ -161,10 +184,13 @@ function noticeHtml(res) {
   const lv = res.live;
   if (lv?.active) {
     const hotels = lv.hotelsPriced ? ` and ${lv.hotelsPriced} hotel rate${lv.hotelsPriced > 1 ? "s" : ""}` : "";
-    const dropped = res.stats.unverified ? ` ${res.stats.unverified} flight option${res.stats.unverified > 1 ? "s" : ""} without a live price ${res.stats.unverified > 1 ? "were" : "was"} left out, so every flight shown is a real quote.` : "";
-    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}.${dropped} Taxis, trains, buses and ferries are still estimates (marked EST).</div>`;
+    const dropped = res.stats.unverified ? ` ${res.stats.unverified} route${res.stats.unverified > 1 ? "s" : ""} without a live price for every flight can’t be ranked; ${res.stats.unverified > 1 ? "they’re" : "it’s"} listed separately at the bottom as an estimate.` : "";
+    return `<div class="notice ok"><b>Live prices.</b> Checked Google Flights for ${lv.priced} airport pair${lv.priced > 1 ? "s" : ""}${hotels}. Every ranked flight is a real quote.${dropped} Taxis, trains, buses and ferries are still estimates (marked EST).</div>`;
   }
-  return `<div class="notice"><b>Estimates only.</b> These prices come from a built-in model (distance-based fares, approximate departure taxes, typical hotel rates) — not live quotes — so use them to find <i>which</i> options deserve a look, then confirm with the “Check live” links.</div>`;
+  const why = lv?.error
+    ? `Live flight prices couldn’t be fetched right now (${esc(lv.error)}). This is most often the site’s daily limit on live searches being used up — it resets at midnight UTC.`
+    : "Live flight prices are switched off.";
+  return `<div class="notice alert"><b>Estimates only — not real prices.</b> ${why} What you see below comes from a rough built-in model (distance-based fares, approximate departure taxes), which is biased toward certain airports — so treat it as a shortlist of ideas, not a quote. Try again later for live results.</div>`;
 }
 
 function render(res, date) {
@@ -188,7 +214,16 @@ function render(res, date) {
     html += `<h2>With an overnight stay <small>— hotel cost included and shown</small></h2>${res.overnightOptions.map((i) => cardHtml(i, res, date)).join("")}`;
   }
   if (res.alternatives.length) {
-    html += `<h2>Other options</h2>${res.alternatives.map((i) => cardHtml(i, res, date)).join("")}`;
+    const SHOW = 10;
+    const shown = res.alternatives.slice(0, SHOW).map((i) => cardHtml(i, res, date)).join("");
+    const rest = res.alternatives.slice(SHOW);
+    html += `<h2>All combinations <small>— ${res.alternatives.length} more, cheapest first</small></h2>${shown}`;
+    if (rest.length) {
+      html += `<div class="more" hidden>${rest.map((i) => cardHtml(i, res, date)).join("")}</div><button type="button" class="more-btn" data-more>Show ${rest.length} more combination${rest.length > 1 ? "s" : ""}</button>`;
+    }
+  }
+  if (res.unverifiedOptions?.length) {
+    html += `<h2>Estimated only <small>— no live price for at least one flight, so not ranked</small></h2>${res.unverifiedOptions.map((i) => cardHtml(i, res, date)).join("")}`;
   }
   if (res.warnings.length) html += `<div class="notice">${res.warnings.map(esc).join(" ")}</div>`;
   els.results.innerHTML = html;
@@ -197,11 +232,13 @@ function render(res, date) {
 // ---------- running a search ----------
 // One request prices many airport pairs (the proxy forwards a single batched
 // search, so cost stays low).
-async function livePrices(pairs, date) {
+async function livePrices(pairs, date, info = {}) {
   const qs = new URLSearchParams({
     from: [...new Set(pairs.map((p) => p.from))].join(","),
     to: [...new Set(pairs.map((p) => p.to))].join(","),
     date,
+    // the main long-haul grid may spend a couple of extra lookups filling gaps; positioning hops never do
+    fill: info.group === "main" ? "2" : "0",
     pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
   const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
@@ -220,7 +257,7 @@ function queryFromForm() {
   return {
     origin: places.origin, destination: places.destination, date: els.date.value,
     beforeHours: els.before.value, afterHours: els.after.value, modes: modes(),
-    overnight: els.overnight.checked, ownCar: els.owncar.checked,
+    overnight: els.overnight.checked, positioning: els.positioning.checked, ownCar: els.owncar.checked,
     valuePerHour: els.value.value, pointsCents: els.cents.value, rankBy: els.rank.value,
   };
 }
@@ -253,6 +290,13 @@ els.form.addEventListener("submit", async (e) => {
   } finally {
     els.go.disabled = false;
   }
+});
+
+els.results.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-more]");
+  if (!btn) return;
+  btn.previousElementSibling.hidden = false;
+  btn.remove();
 });
 
 // Ranking inputs re-sort instantly without re-geocoding.

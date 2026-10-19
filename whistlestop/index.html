@@ -36,15 +36,15 @@
           <input id="date" type="date" required />
         </label>
         <label class="field">
-          <span>Travel up to… <em>hours before</em></span>
+          <span>Travel up to <em>hours to start</em></span>
           <input id="before" type="number" min="0.25" max="12" step="0.25" value="3" inputmode="decimal" />
         </label>
         <label class="field">
-          <span>…and up to <em>hours after</em></span>
+          <span>…and up to <em>hours to finish</em></span>
           <input id="after" type="number" min="0.25" max="12" step="0.25" value="1.5" inputmode="decimal" />
         </label>
       </div>
-      <p class="help">“Before” is how far you’ll go to reach a departure point (airport, station, port). “After” is how far you’ll go from where you land to your destination.</p>
+      <p class="help">“To start” is how many hours you’re willing to spend <b>travelling</b> from your starting point to reach a departure point (taxi, train, bus, ferry — or a short flight to another city). “To finish” is the same from where you land to your destination. Time spent waiting at airports isn’t counted against these, but it is shown in each trip’s total.</p>
 
       <fieldset class="modes">
         <legend>Acceptable ways to travel</legend>
@@ -56,6 +56,7 @@
 
       <div class="toggles">
         <label class="switch"><input id="overnight" type="checkbox" /><span>I can stay overnight <em>(adds hotel cost for farther options)</em></span></label>
+        <label class="switch"><input id="positioning" type="checkbox" checked /><span>Allow a short repositioning flight <em>(e.g. a cheap flight to Milan, then the long-haul — booked as two separate tickets)</em></span></label>
         <label class="switch"><input id="owncar" type="checkbox" /><span>I’ll drive my own car to departure points</span></label>
       </div>
 
