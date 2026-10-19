@@ -36,8 +36,8 @@ const TRANSFER_KM = 15; // two stations this close count as "a change in the sam
 const MAX_POSITIONING_KM = 3000; // a positioning flight is a short/medium hop, not the long leg
 const SELF_TRANSFER_MIN = 90; // collect bags + re-check in, on top of the normal airport time
 const MAX_HOP_STARTS = 12; // origin-side airports a repositioning flight may start from (nearest first)
-const MAX_HOP_CHAINS = 250; // cap on repositioning chains kept per side (each starting airport still gets its best few)
-const MIN_PER_START = 5;
+const MAX_HOP_CHAINS = 900; // cap on repositioning chains kept per side (each starting airport still gets its best few)
+const MIN_PER_START = 60; // every hub within reach of a starting airport stays a candidate (real prices, not the estimate model, decide)
 const METRO_KM = 50; // a commercial airport this close to the place you typed IS that place's airport
 const MAX_EXTRA_GAP_MIN = 480; // a connection this much longer than the minimum is a wasted day, not a connection
 const RIDE_BUFFER_MIN = 20; // timetables aren't known: allow a wait per train/bus/ferry when saying when to leave
@@ -71,6 +71,7 @@ export function normalize(input) {
     // Bags per traveller. "carryon" re-prices every flight WITH a cabin bag (real data from the
     // price provider). Checked bags: the provider has no setting or fee amounts for them, so
     // they are never guessed - trips are flagged instead (see itin.checkedBags).
+    breadth: input.breadth === "wide" ? "wide" : "standard",
     bags: ["personal", "carryon", "checked1", "checked2"].includes(input.bags) ? input.bags : "personal",
   };
 }
@@ -681,7 +682,10 @@ function addDays(iso, n) {
 
 // Pairs of airports to price, per role. Providers charge per search, so each group
 // goes in ONE batched request, capped (what a request can carry / what we can afford).
-const GROUP_LIMITS = { main: { pairs: 20, airports: 8 }, pre: { pairs: 16, airports: 8 }, post: { pairs: 16, airports: 8 } };
+const GROUP_LIMITS = { main: { pairs: 20, airports: 8 }, hubmain: { pairs: 32, airports: 8 }, pre: { pairs: 20, airports: 8 }, post: { pairs: 16, airports: 8 } };
+// How many hub airports get their long-haul fare priced (8 per search). Wide costs about 4 more searches.
+const BREADTH_HUBS = { standard: 16, wide: 48 };
+const HOP_HUBS_PRICED = 5; // hubs (cheapest real long-haul first) that then get their repositioning flight priced
 const HOP_STARTS = 4; // origin-side airports to try a repositioning flight from
 const HOP_HUBS = 4; // hub airports to try repositioning flights to
 
@@ -850,31 +854,36 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
   const K = deps.liveTopK ?? 10;
   const air = itineraries.filter((i) => i.mode === "air").sort((x, y) => x.score - y.score);
   const groups = new Map(); // `${role}@${day}#${round}` -> group
-  const groupOf = (f, round = 1) => {
-    const k = `${f.side}@${f.date}#${round}`;
-    if (!groups.has(k)) groups.set(k, newGroup(f.side, f.date, round));
-    return groups.get(k);
+  // With `spill`, a full group overflows into another request (8 airports per search) - used for
+  // the hub sweep, where covering more airports is the point and the number of hubs is the budget.
+  const groupOf = (f, round = 1, name = f.side, spill = false) => {
+    const base = `${name}@${f.date}#${round}`;
+    for (let n = 0; ; n++) {
+      const k = n ? `${base}~${n}` : base;
+      let g = groups.get(k);
+      if (!g) {
+        g = newGroup(name, f.date, round);
+        groups.set(k, g);
+        return g;
+      }
+      if (!spill || groupFits(g, f)) return g;
+    }
   };
   const today = new Date().toISOString().slice(0, 10);
   const flightsOf = (it) => it.legs.filter((l) => l.kind === "flight");
-  // Two things wait for a second round, because they depend on real answers from the first:
-  //  - flights AFTER the long one: dated from when the long flight really lands (an eastbound
-  //    overnight flight lands the next day);
-  //  - the long flight FROM a repositioning hub: only worth pricing if there is a real flight
-  //    to that hub in the first place. (Pricing estimates for hubs nobody flies to is how you
-  //    end up showing flights, like Shannon to Newark, that don't exist.)
+  // Flights AFTER the long one wait for a second round: they are dated from when the long
+  // flight really lands (an eastbound overnight flight lands the next day). Short flights
+  // BEFORE the long one also wait: real fares, not our estimate model, decide which hubs get
+  // one priced (below).
   const deferred = [];
-  const deferredMain = []; // { it, hop, main }
   const tryAdd = (it, force) => {
     const flights = flightsOf(it);
-    const hopFirst = !!it.pre.pos;
-    const now = flights.filter((f) => f.side !== "post" && !(hopFirst && f.role === "main"));
+    const now = flights.filter((f) => f.side !== "post" && f.side !== "pre");
     // a flight "the day before" can't be priced when that day is already past
     if (!force && now.some((f) => f.date && f.date < today)) return false;
     if (!force && !now.every((f) => groupFits(groupOf(f), f))) return false;
     for (const f of now) groupAdd(groupOf(f), f);
     for (const f of flights) if (f.side === "post") deferred.push(f);
-    if (hopFirst) deferredMain.push({ hop: flights.find((f) => f.side === "pre"), main: flights.find((f) => f.role === "main") });
     return true;
   };
 
@@ -898,14 +907,28 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     }
   }
 
-  // 3. Repositioning-flight trips. The estimate model can't know a budget airline
-  //    might be dirt cheap, so instead of trusting its ranking we price a GRID:
-  //    the few nearest starting airports x the few best hub airports. (The proxy
-  //    returns every pair Google has for that grid, so this costs one request.)
+  // 3. Repositioning flights BEFORE the long one. The estimate model cannot know which hub has a
+  //    cheap long-haul fare (or a budget airline to it), so it is only used to order a sweep:
+  //      round 1: price the LONG flight from the hubs (8 hubs per search; 16 standard, 48 wide)
+  //      round 2: price the short hop to the hubs whose real long-haul fare is lowest
+  //    So an airport like Geneva is looked at because it is a gateway, not because a model liked it.
   const hopped = candidates.filter((i) => (i.pre.pos || i.post.pos) && !isSmall(i));
-  // Trips with a hotel night fly their hop on a different day, so they get their own grid
-  // (a separate request) rather than competing with same-day hops for the same slots.
-  for (const [side, hotel] of [["pre", false], ["post", false], ["pre", true], ["post", true]]) {
+  const preHops = hopped.filter((i) => i.pre.pos);
+  const hubScore = new Map(); // hubId -> best estimated score (only used to order the sweep)
+  for (const it of preHops) {
+    const id = it.pre.end.id;
+    if (!hubScore.has(id) || it.score < hubScore.get(id)) hubScore.set(id, it.score);
+  }
+  const sweepHubs = new Set([...hubScore.entries()].sort((a, b) => a[1] - b[1]).slice(0, BREADTH_HUBS[opts.breadth]).map(([id]) => id));
+  for (const it of preHops) {
+    if (!sweepHubs.has(it.pre.end.id)) continue;
+    const f = it.legs.find((l) => l.kind === "flight" && l.role === "main");
+    groupAdd(groupOf(f, 1, "hubmain", true), f);
+  }
+
+  // 3b. Repositioning flights AFTER the long one (opt-in; estimate-ordered, as before).
+  // Trips with a hotel night fly their hop on a different day, so they get their own grid.
+  for (const [side, hotel] of [["post", false], ["post", true]]) {
     const ofSide = hopped.filter((i) => i[side].pos && !!i[side].hotel === hotel);
     const hubs = [];
     for (const it of ofSide) {
@@ -964,12 +987,26 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     }
   }
   for (const f of deferred) if (!(f.date && f.date < today) && groupFits(groupOf(f, 2), f)) groupAdd(groupOf(f, 2), f);
-  // ...and the long flight from each hub that really has a hop flight, cheapest hop first.
-  const hopFare = (h) => byKey.get(`${h.hop.date}|${h.hop.fromCode}-${h.hop.toCode}`)?.fare;
-  for (const h of deferredMain.filter((x) => hopFare(x) !== undefined).sort((a, b) => hopFare(a) - hopFare(b))) {
-    const f = h.main;
-    if (byKey.has(`${f.date}|${f.fromCode}-${f.toCode}`)) continue; // already priced in round 1
-    if (groupFits(groupOf(f, 2), f)) groupAdd(groupOf(f, 2), f);
+  // ...and the short flight to each hub whose REAL long-haul fare is lowest. (A hub with no real
+  // long-haul flight is never offered, so nothing like Shannon to Newark can appear.)
+  const hubFare = new Map(); // hubId -> cheapest real long-haul fare found from it
+  for (const it of preHops) {
+    const f = it.legs.find((l) => l.kind === "flight" && l.role === "main");
+    const q = byKey.get(`${f.date}|${f.fromCode}-${f.toCode}`);
+    if (q && (!hubFare.has(it.pre.end.id) || q.fare < hubFare.get(it.pre.end.id))) hubFare.set(it.pre.end.id, q.fare);
+  }
+  const bestHubs = new Set([...hubFare.entries()].sort((a, b) => a[1] - b[1]).slice(0, HOP_HUBS_PRICED).map(([id]) => id));
+  const startOrder = new Map(); // starting airport -> its ground minutes (nearest first)
+  for (const it of preHops) {
+    const m = it.pre.base.reduce((s, l) => s + l.minutes, 0);
+    if (!startOrder.has(it.pre.pos.from.id) || m < startOrder.get(it.pre.pos.from.id)) startOrder.set(it.pre.pos.from.id, m);
+  }
+  const bestStarts = new Set([...startOrder.entries()].sort((a, b) => a[1] - b[1]).slice(0, HOP_STARTS).map(([id]) => id));
+  for (const it of preHops) {
+    if (!bestHubs.has(it.pre.end.id) || !bestStarts.has(it.pre.pos.from.id)) continue;
+    const hop = it.legs.find((l) => l.kind === "flight" && l.side === "pre");
+    if (hop.date && hop.date < today) continue; // "the day before" is already past
+    if (groupFits(groupOf(hop, 2), hop)) groupAdd(groupOf(hop, 2), hop);
   }
   await priceGroups();
 

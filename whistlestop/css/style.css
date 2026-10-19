@@ -211,3 +211,4 @@ footer { padding-top: 28px; padding-bottom: 48px; color: var(--muted); font-size
 
 .bagwarn { color: var(--warn-fg); }
 .field.bags { margin-top: 14px; }
+.field.breadth { margin-top: 14px; }
