@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Whistlestop — the cheapest way there</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Compare flying, trains, buses and ferries from nearby airports and stations, including the cost of getting there and an optional overnight stay." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 22V10l14 6z' fill='white'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M9 22V10l14 6z"/></svg>
+      <span>Whistlestop</span>
+    </div>
+    <p class="tag">The cheapest way there — even if it starts somewhere else.</p>
+  </header>
+
+  <main>
+    <form id="form" class="panel" novalidate>
+      <div class="grid2">
+        <label class="field">
+          <span>From</span>
+          <input id="from" type="text" placeholder="City, address or lat, lon" autocomplete="off" required />
+        </label>
+        <label class="field">
+          <span>To</span>
+          <input id="to" type="text" placeholder="City, address or lat, lon" autocomplete="off" required />
+        </label>
+      </div>
+
+      <div class="grid3">
+        <label class="field">
+          <span>Date</span>
+          <input id="date" type="date" required />
+        </label>
+        <label class="field">
+          <span>Travel up to… <em>hours before</em></span>
+          <input id="before" type="number" min="0.25" max="12" step="0.25" value="3" inputmode="decimal" />
+        </label>
+        <label class="field">
+          <span>…and up to <em>hours after</em></span>
+          <input id="after" type="number" min="0.25" max="12" step="0.25" value="1.5" inputmode="decimal" />
+        </label>
+      </div>
+      <p class="help">“Before” is how far you’ll go to reach a departure point (airport, station, port). “After” is how far you’ll go from where you land to your destination.</p>
+
+      <fieldset class="modes">
+        <legend>Acceptable ways to travel</legend>
+        <label class="chip"><input type="checkbox" name="mode" value="air" checked /><span>Flights</span></label>
+        <label class="chip"><input type="checkbox" name="mode" value="rail" checked /><span>Trains</span></label>
+        <label class="chip"><input type="checkbox" name="mode" value="bus" checked /><span>Buses</span></label>
+        <label class="chip"><input type="checkbox" name="mode" value="ferry" checked /><span>Ferries</span></label>
+      </fieldset>
+
+      <div class="toggles">
+        <label class="switch"><input id="overnight" type="checkbox" /><span>I can stay overnight <em>(adds hotel cost for farther options)</em></span></label>
+        <label class="switch"><input id="owncar" type="checkbox" /><span>I’ll drive my own car to departure points</span></label>
+      </div>
+
+      <details class="advanced">
+        <summary>More options</summary>
+        <div class="grid3">
+          <label class="field">
+            <span>My time is worth ($/hour)</span>
+            <input id="value" type="number" min="0" max="500" step="1" value="0" inputmode="decimal" />
+          </label>
+          <label class="field">
+            <span>My points are worth (¢ each)</span>
+            <input id="cents" type="number" min="0.1" max="10" step="0.1" value="1.4" inputmode="decimal" />
+          </label>
+          <label class="field">
+            <span>Rank by</span>
+            <select id="rank">
+              <option value="cash">Cash price</option>
+              <option value="points">Cost if I pay flights with points</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <button id="go" type="submit" class="primary">Find my whistlestop</button>
+    </form>
+
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="notice"></div>
+    <section id="results"></section>
+  </main>
+
+  <footer>
+    <p><strong>How accurate is this?</strong> Prices marked <span class="badge est">EST</span> come from a built-in estimate model (distance-based fares, approximate country departure taxes, typical hotel rates), not live quotes. Prices marked <span class="badge live">LIVE</span> come from a connected fare provider. Always use the “Check live” links before booking. Station, bus and ferry coverage is currently limited to the UK, Western Europe and the US north-east, Chicago and California.</p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
