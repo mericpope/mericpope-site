@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wavelength</title>
+<meta name="description" content="Rate a few movies and get recommendations tuned to your taste." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🎬 Wavelength</h1>
+    <p class="subtitle">Rate a few movies you know. Get suggestions tuned to your taste.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>1. Search &amp; rate movies</h2>
+      <input id="search-input" type="text" placeholder="Search a movie title... (e.g. Matrix)" autocomplete="off" />
+      <ul id="search-results" class="movie-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>2. Your ratings <span id="rating-count" class="count"></span></h2>
+      <ul id="my-ratings" class="movie-list"></ul>
+      <button id="recommend-btn" disabled>Get Recommendations</button>
+      <p id="status-msg" class="status"></p>
+    </section>
+
+    <section class="panel">
+      <h2>3. Recommended for you</h2>
+      <ul id="recommendations" class="movie-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    Everything runs in your browser; your ratings stay on this device.<br />
+    Data: <a href="https://grouplens.org/datasets/movielens/">MovieLens</a> (ml-latest-small) by GroupLens,
+    University of Minnesota &mdash; Harper &amp; Konstan, 2015. Used for non-commercial purposes;
+    not endorsed by GroupLens. <a href="movielens-README.txt">License terms</a>.
+  </footer>
+
+  <script src="buildData.js"></script>
+  <script src="recommender.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
