@@ -1,0 +1,1240 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+<title>Stage Door</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of ticket stubs and theatre maps under a sticky marquee bar; sheets slide up for logging. */
+:root {
+  --bg: #F2F0F4;
+  --card: #FFFFFF;
+  --fg: #211A29;
+  --muted: #6D6478;
+  --line: #DAD4E0;
+  --accent: #8E1D3C;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #F3E1E7;
+  --gold: #B7842A;
+  --good: #2F7A55;
+  --display: "Young Serif", Georgia, "Times New Roman", serif;
+  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131017; --card: #1D1823; --fg: #EFE9F3; --muted: #A79CB1; --line: #352D3E;
+    --accent: #E35F82; --accent-ink: #1A0E14; --accent-soft: #3A1C27; --gold: #E6B85A; --good: #6CC498;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131017; --card: #1D1823; --fg: #EFE9F3; --muted: #A79CB1; --line: #352D3E;
+  --accent: #E35F82; --accent-ink: #1A0E14; --accent-soft: #3A1C27; --gold: #E6B85A; --good: #6CC498;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 880px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; }
+
+header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.bar-inner { display: flex; align-items: center; gap: 12px; padding-block: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--display); font-size: 1.45rem; letter-spacing: .01em; margin-right: auto; display: flex; align-items: baseline; gap: 8px; }
+.brand small { font-family: var(--mono); font-size: .68rem; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+nav.tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+nav.tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: .9rem; color: var(--muted); }
+nav.tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { background: none; }
+.btn.danger { color: var(--accent); }
+@media (max-width: 560px) { nav.tabs { order: 3; width: 100%; justify-content: space-between; } nav.tabs button { flex: 1; padding-inline: 6px; } }
+
+main { padding-block: 20px 64px; display: grid; gap: 22px; }
+.note { font-size: .88rem; color: var(--muted); background: var(--card); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; }
+.eyebrow { font-family: var(--mono); font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.stat { padding: 14px 16px; border-left: 1px solid var(--line); min-width: 0; }
+.stat:first-child { border-left: 0; }
+.stat b { display: block; font-family: var(--display); font-weight: 400; font-size: 1.9rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: .8rem; color: var(--muted); }
+@media (max-width: 560px) { .stats { grid-template-columns: 1fr 1fr; } .stat:nth-child(3) { border-left: 0; } .stat:nth-child(n+3) { border-top: 1px solid var(--line); } }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar input[type="search"] { flex: 1 1 200px; min-width: 0; }
+.field, .toolbar input, .toolbar select { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+
+/* ticket stubs */
+.year-head { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
+.year-head h2 { font-size: 1.6rem; }
+.year-head span { color: var(--muted); font-size: .85rem; }
+.stubs { display: grid; gap: 12px; }
+.stub { display: grid; grid-template-columns: 92px 1fr; background: var(--card); border: 1px solid var(--line); border-radius: 12px; text-align: left; padding: 0; width: 100%; position: relative; }
+.stub:hover { border-color: var(--muted); }
+.stub-date { font-family: var(--mono); text-transform: uppercase; display: grid; place-content: center; text-align: center; gap: 2px; padding: 12px 6px; border-right: 2px dashed var(--line); position: relative; }
+.stub-date::before, .stub-date::after { content: ""; position: absolute; right: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); }
+.stub-date::before { top: -9px; } .stub-date::after { bottom: -9px; }
+.stub-date .m { font-size: .72rem; letter-spacing: .12em; color: var(--muted); }
+.stub-date .d { font-size: 1.6rem; line-height: 1; font-weight: 500; }
+.stub-date .y { font-size: .72rem; color: var(--muted); }
+.stub-body { padding: 12px 16px; min-width: 0; display: grid; gap: 4px; }
+.stub-title { font-family: var(--display); font-size: 1.2rem; line-height: 1.25; }
+.stub-meta { font-size: .86rem; color: var(--muted); }
+.stub-notes { font-size: .9rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { font-family: var(--mono); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
+.pill.hot { border-color: var(--accent); color: var(--accent); }
+
+.stars { position: relative; display: inline-block; line-height: 1; letter-spacing: .06em; color: var(--line); white-space: nowrap; user-select: none; }
+.stars .fill { position: absolute; inset: 0 auto 0 0; overflow: hidden; color: var(--gold); }
+.stars-input { font-size: 2rem; cursor: pointer; touch-action: manipulation; }
+.rating-row { display: flex; align-items: center; gap: 12px; }
+.rating-row output { font-family: var(--mono); color: var(--muted); min-width: 3ch; }
+
+.empty { text-align: center; padding: 40px 16px; border: 1px dashed var(--line); border-radius: 14px; display: grid; gap: 10px; justify-items: center; }
+.empty h2 { font-size: 1.4rem; }
+.empty p { color: var(--muted); margin: 0; max-width: 46ch; }
+
+/* catalogue */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
+.seg button { border: 0; background: none; padding: 8px 14px; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.years { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.years button { flex: none; font-family: var(--mono); border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 10px; font-size: .85rem; }
+.years button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.years button .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 5px; vertical-align: middle; }
+.cat-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cat-head h2 { font-size: 1.7rem; }
+.cat-head p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+.meter { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.list { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+.item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.tick { width: 28px; height: 28px; border-radius: 8px; border: 1.5px solid var(--line); background: none; display: grid; place-items: center; padding: 0; color: var(--accent-ink); }
+.tick svg { width: 16px; height: 16px; opacity: 0; }
+.tick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.tick[aria-pressed="true"] svg { opacity: 1; }
+.item-main { min-width: 0; }
+.item-title { font-weight: 600; }
+.item-sub { font-size: .84rem; color: var(--muted); }
+.item-side { text-align: right; font-size: .8rem; color: var(--muted); display: grid; gap: 2px; justify-items: end; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* theatres */
+.counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.counter { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; }
+.counter b { font-family: var(--display); font-weight: 400; font-size: 1.8rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.counter b small { font-size: 1rem; color: var(--muted); }
+.counter span { font-size: .82rem; color: var(--muted); }
+.city { display: grid; gap: 14px; padding-top: 6px; }
+.city-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 2px solid var(--fg); padding-bottom: 6px; }
+.city-head h2 { font-size: 1.7rem; }
+.city-head span { font-family: var(--mono); font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tier h3 { font-family: var(--body); font-weight: 700; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: flex; gap: 8px; }
+.tier h3 em { font-style: normal; font-family: var(--mono); font-weight: 400; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: .84rem; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; color: var(--muted); background: none; }
+.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); font-weight: 600; }
+.chip.on sup { font-family: var(--mono); font-size: .66rem; color: var(--accent); margin-left: 3px; }
+
+/* sheet */
+.overlay { position: fixed; inset: 0; z-index: 20; background: color-mix(in srgb, var(--fg) 45%, transparent); display: flex; align-items: flex-end; justify-content: center; }
+@media (min-width: 640px) { .overlay { align-items: center; } }
+.sheet { background: var(--bg); width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 14px; }
+@media (min-width: 640px) { .sheet { border-radius: 18px; padding-inline: 24px; } }
+.sheet h2 { font-size: 1.5rem; }
+.sheet label { display: grid; gap: 4px; font-size: .82rem; font-weight: 600; color: var(--muted); }
+.sheet .field { width: 100%; min-width: 0; color: var(--fg); font-weight: 400; font-size: 1rem; }
+.sheet textarea.field { min-height: 110px; resize: vertical; line-height: 1.5; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .grid2 { grid-template-columns: 1fr; } }
+.sheet-actions { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; padding-top: 4px; }
+.sheet-actions .right { display: flex; gap: 8px; margin-left: auto; }
+.err { color: var(--accent); font-size: .85rem; margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .sheet { animation: rise .22s ease-out; } @keyframes rise { from { transform: translateY(24px); opacity: .6; } } }
+</style>
+
+<header class="bar">
+  <div class="wrap bar-inner">
+    <div class="brand">Stage Door <small>Theatre diary</small></div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-diary" data-tab="diary">Diary</button>
+      <button role="tab" id="tab-shows" data-tab="shows">Shows</button>
+      <button role="tab" id="tab-theatres" data-tab="theatres">Theatres</button>
+    </nav>
+    <button class="btn primary" data-act="log">+ Log a show</button>
+  </div>
+</header>
+<main class="wrap" id="view"></main>
+<div class="overlay" id="overlay" hidden><form class="sheet" id="sheet" novalidate></form></div>
+
+<script>
+/* ---------- reference data ---------- */
+const COUNTRIES_REGIONAL = ['US', 'UK'];
+const CITIES = {
+  nyc: { n: 'New York', c: 'US', always: true },
+  lon: { n: 'London', c: 'UK', always: true },
+};
+const TH = {};
+function slug(s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+function addTheatres(city, tier, text) {
+  text.trim().split('\n').forEach(l => { const [id, n, aka] = l.trim().split('|'); TH[id] = { id, n, city, tier, aka: aka || '' }; });
+}
+function addCity(key, name, country, names) {
+  CITIES[key] = { n: name, c: country };
+  names.forEach(n => { const id = key + '-' + slug(n); TH[id] = { id, n, city: key, tier: 'house', aka: '' }; });
+}
+
+addTheatres('nyc', 'broadway', `
+hirschfeld|Al Hirschfeld Theatre
+ambassador|Ambassador Theatre
+augustwilson|August Wilson Theatre
+belasco|Belasco Theatre
+jacobs|Bernard B. Jacobs Theatre
+booth|Booth Theatre
+broadhurst|Broadhurst Theatre
+broadwayth|Broadway Theatre
+circle|Circle in the Square Theatre
+barrymore|Ethel Barrymore Theatre
+oneill|Eugene O'Neill Theatre
+schoenfeld|Gerald Schoenfeld Theatre
+gershwin|Gershwin Theatre
+hayes|Hayes Theater|formerly Helen Hayes
+hudson|Hudson Theatre
+imperial|Imperial Theatre
+jej|James Earl Jones Theatre|formerly Cort
+golden|John Golden Theatre
+lenahorne|Lena Horne Theatre|formerly Brooks Atkinson
+longacre|Longacre Theatre
+luntfontanne|Lunt-Fontanne Theatre
+lyceumny|Lyceum Theatre
+lyricny|Lyric Theatre|formerly Foxwoods
+majestic|Majestic Theatre
+marquis|Marquis Theatre
+minskoff|Minskoff Theatre
+musicbox|Music Box Theatre
+nederlander|Nederlander Theatre
+neilsimon|Neil Simon Theatre
+newamsterdam|New Amsterdam Theatre
+palace|Palace Theatre
+rodgers|Richard Rodgers Theatre
+friedman|Samuel J. Friedman Theatre
+shubert|Shubert Theatre
+sondheimny|Stephen Sondheim Theatre
+stjames|St. James Theatre
+studio54|Studio 54
+haimes|Todd Haimes Theatre|formerly American Airlines
+beaumont|Vivian Beaumont Theater
+kerr|Walter Kerr Theatre
+wintergarden|Winter Garden Theatre`);
+addTheatres('nyc', 'offbroadway', `
+public|The Public Theater
+nytw|New York Theatre Workshop
+playwrights|Playwrights Horizons
+secondstage|Tony Kiser Theater (Second Stage)
+atlantic|Atlantic Theater Company
+signature|Pershing Square Signature Center
+mcc|MCC Theater Space
+lortel|Lucille Lortel Theatre
+minetta|Minetta Lane Theatre
+darylroth|Daryl Roth Theatre
+nws|New World Stages
+westside|Westside Theatre
+orpheumny|Orpheum Theatre
+stage42|Stage 42
+laurapels|Laura Pels Theatre
+newhouse|Mitzi E. Newhouse Theater
+clairetow|Claire Tow Theater
+citycenter|New York City Center
+delacorte|Delacorte Theater
+csc|Classic Stage Company
+irishrep|Irish Repertory Theatre
+vineyard|Vineyard Theatre
+shed|The Shed
+armory|Park Avenue Armory
+stanns|St. Ann's Warehouse
+bamharvey|BAM Harvey Theater
+polonsky|Polonsky Shakespeare Center
+astor|Astor Place Theatre
+cherrylane|Cherry Lane Theatre
+theatrerow|Theatre Row
+e5959|59E59 Theaters
+newvictory|New Victory Theater
+arsnova|Ars Nova`);
+addTheatres('nyc', 'offoff', `
+lamama|La MaMa
+here|HERE Arts Center
+sohorep|Soho Rep
+flea|The Flea
+psnyc|Performance Space New York
+kitchen|The Kitchen
+judson|The Gym at Judson`);
+addTheatres('nyc', 'opera', `
+met|Metropolitan Opera House
+koch|David H. Koch Theater
+bamopera|BAM Howard Gilman Opera House
+carnegie|Carnegie Hall
+radiocity|Radio City Music Hall`);
+addTheatres('lon', 'westend', `
+adelphi|Adelphi Theatre
+aldwych|Aldwych Theatre
+ambassadors|Ambassadors Theatre
+apollo|Apollo Theatre
+apollovic|Apollo Victoria Theatre
+arts|Arts Theatre
+cambridge|Cambridge Theatre
+criterion|Criterion Theatre
+dominion|Dominion Theatre
+duchess|Duchess Theatre
+dukeofyorks|Duke of York's Theatre
+fortune|Fortune Theatre
+garrick|Garrick Theatre
+gielgud|Gielgud Theatre
+gillianlynne|Gillian Lynne Theatre|formerly New London
+haroldpinter|Harold Pinter Theatre
+hismajestys|His Majesty's Theatre
+coliseum|London Coliseum
+palladium|London Palladium
+lyceumlon|Lyceum Theatre
+lyriclon|Lyric Theatre
+noelcoward|Noël Coward Theatre
+novello|Novello Theatre
+palacelon|Palace Theatre
+peacock|Peacock Theatre
+phoenix|Phoenix Theatre
+piccadilly|Piccadilly Theatre
+playhouse|Playhouse Theatre|Kit Kat Club
+princeedward|Prince Edward Theatre
+princeofwales|Prince of Wales Theatre
+savoy|Savoy Theatre
+shaftesbury|Shaftesbury Theatre
+sohoplace|@sohoplace
+sondheimlon|Sondheim Theatre|formerly Queen's
+stmartins|St Martin's Theatre
+drurylane|Theatre Royal Drury Lane
+haymarket|Theatre Royal Haymarket
+trafalgar|Trafalgar Theatre
+vaudeville|Vaudeville Theatre
+victoriapalace|Victoria Palace Theatre
+wyndhams|Wyndham's Theatre`);
+addTheatres('lon', 'offwestend', `
+ntolivier|National Theatre – Olivier
+ntlyttelton|National Theatre – Lyttelton
+ntdorfman|National Theatre – Dorfman
+oldvic|The Old Vic
+youngvic|Young Vic
+barbican|Barbican Theatre
+bridge|Bridge Theatre
+almeida|Almeida Theatre
+donmar|Donmar Warehouse
+menier|Menier Chocolate Factory
+royalcourt|Royal Court Theatre
+hampstead|Hampstead Theatre
+globe|Shakespeare's Globe
+wanamaker|Sam Wanamaker Playhouse
+openair|Regent's Park Open Air Theatre
+kiln|Kiln Theatre
+lyrichammersmith|Lyric Hammersmith
+stratfordeast|Theatre Royal Stratford East
+otherpalace|The Other Palace
+troubadour|Troubadour Wembley Park Theatre
+charingcross|Charing Cross Theatre
+riverside|Riverside Studios
+marylebone|Marylebone Theatre
+southwark|Southwark Playhouse
+bush|Bush Theatre
+arcola|Arcola Theatre
+park|Park Theatre
+orangetree|Orange Tree Theatre
+sohotheatre|Soho Theatre
+turbine|Turbine Theatre`);
+addTheatres('lon', 'fringe', `
+finborough|Finborough Theatre
+jermyn|Jermyn Street Theatre
+kingshead|King's Head Theatre
+union|Union Theatre
+hopetheatre|The Hope Theatre
+gatehouse|Upstairs at the Gatehouse`);
+addTheatres('lon', 'opera', `
+roh|Royal Opera House
+sadlers|Sadler's Wells
+royalalbert|Royal Albert Hall`);
+
+addCity('fra', 'Frankfurt', 'DE', ['Oper Frankfurt', 'Schauspiel Frankfurt', 'Kammerspiele Frankfurt', 'English Theatre Frankfurt', 'Alte Oper', 'Die Komödie', 'Fritz Rémond Theater', 'Künstlerhaus Mousonturm', 'Bockenheimer Depot', 'Tigerpalast']);
+addCity('vie', 'Vienna', 'AT', ['Wiener Staatsoper', 'Volksoper Wien', 'Theater an der Wien', 'Burgtheater', 'Akademietheater', 'Theater in der Josefstadt', 'Ronacher', 'Raimund Theater', 'Volkstheater', 'Musikverein', 'Wiener Konzerthaus']);
+addCity('ber', 'Berlin', 'DE', ['Staatsoper Unter den Linden', 'Deutsche Oper Berlin', 'Komische Oper', 'Berliner Ensemble', 'Deutsches Theater', 'Schaubühne', 'Volksbühne', 'Maxim Gorki Theater', 'Friedrichstadt-Palast', 'Theater des Westens', 'Admiralspalast', 'Berliner Philharmonie']);
+addCity('ham', 'Hamburg', 'DE', ['Hamburgische Staatsoper', 'Elbphilharmonie', 'Thalia Theater', 'Deutsches Schauspielhaus', 'Stage Theater an der Elbe', 'Stage Theater im Hafen', 'Stage Operettenhaus', 'Stage Theater Neue Flora']);
+addCity('muc', 'Munich', 'DE', ['Nationaltheater (Bayerische Staatsoper)', 'Residenztheater', 'Münchner Kammerspiele', 'Gärtnerplatztheater', 'Deutsches Theater München', 'Prinzregententheater']);
+addCity('par', 'Paris', 'FR', ['Palais Garnier', 'Opéra Bastille', 'Comédie-Française', 'Théâtre du Châtelet', 'Opéra-Comique', 'Théâtre des Champs-Élysées', 'Théâtre Mogador', 'Odéon–Théâtre de l\'Europe', 'Moulin Rouge', 'Philharmonie de Paris']);
+addCity('mil', 'Milan', 'IT', ['Teatro alla Scala', 'Piccolo Teatro', 'Teatro degli Arcimboldi']);
+addCity('sal', 'Salzburg', 'AT', ['Großes Festspielhaus', 'Haus für Mozart', 'Felsenreitschule', 'Salzburger Landestheater']);
+addCity('ams', 'Amsterdam', 'NL', ['Dutch National Opera & Ballet', 'Royal Theatre Carré', 'Internationaal Theater Amsterdam', 'Concertgebouw', 'DeLaMar Theater']);
+addCity('prg', 'Prague', 'CZ', ['National Theatre', 'State Opera', 'Estates Theatre', 'Rudolfinum']);
+addCity('bud', 'Budapest', 'HU', ['Hungarian State Opera', 'Erkel Theatre', 'Müpa Budapest']);
+addCity('mad', 'Madrid', 'ES', ['Teatro Real', 'Teatro de la Zarzuela', 'Teatro Coliseum', 'Teatro Calderón', 'Teatro Lope de Vega']);
+addCity('bcn', 'Barcelona', 'ES', ['Gran Teatre del Liceu', 'Palau de la Música Catalana', 'Teatre Tívoli', 'Teatre Nacional de Catalunya']);
+addCity('dub', 'Dublin', 'IE', ['Abbey Theatre', 'Gate Theatre', 'Gaiety Theatre', 'Bord Gáis Energy Theatre', '3Olympia Theatre']);
+addCity('edi', 'Edinburgh', 'UK', ['Festival Theatre', 'King\'s Theatre', 'Royal Lyceum Theatre', 'Traverse Theatre', 'Edinburgh Playhouse', 'Usher Hall']);
+addCity('gla', 'Glasgow', 'UK', ['Theatre Royal Glasgow', 'King\'s Theatre Glasgow', 'Citizens Theatre', 'Pavilion Theatre']);
+addCity('man', 'Manchester', 'UK', ['Palace Theatre Manchester', 'Opera House Manchester', 'Royal Exchange Theatre', 'HOME', 'Aviva Studios', 'Hope Mill Theatre', 'Bridgewater Hall']);
+addCity('bir', 'Birmingham', 'UK', ['Birmingham Hippodrome', 'Birmingham Rep', 'The Alexandra', 'Symphony Hall']);
+addCity('liv', 'Liverpool', 'UK', ['Liverpool Empire', 'Everyman Theatre', 'Liverpool Playhouse']);
+addCity('lds', 'Leeds', 'UK', ['Leeds Grand Theatre', 'Leeds Playhouse']);
+addCity('bri', 'Bristol', 'UK', ['Bristol Hippodrome', 'Bristol Old Vic']);
+addCity('bth', 'Bath', 'UK', ['Theatre Royal Bath', 'Ustinov Studio']);
+addCity('stf', 'Stratford-upon-Avon', 'UK', ['Royal Shakespeare Theatre', 'Swan Theatre', 'The Other Place']);
+addCity('chi', 'Chichester', 'UK', ['Chichester Festival Theatre', 'Minerva Theatre']);
+addCity('chg', 'Chicago', 'US', ['Lyric Opera of Chicago', 'CIBC Theatre', 'Cadillac Palace Theatre', 'James M. Nederlander Theatre', 'Auditorium Theatre', 'Steppenwolf Theatre', 'Goodman Theatre', 'Chicago Shakespeare Theater']);
+addCity('bos', 'Boston', 'US', ['Citizens Bank Opera House', 'Emerson Colonial Theatre', 'Wang Theatre', 'Huntington Theatre', 'American Repertory Theater']);
+addCity('dc', 'Washington, D.C.', 'US', ['Kennedy Center Opera House', 'Kennedy Center Eisenhower Theater', 'National Theatre', 'Arena Stage', 'Shakespeare Theatre Company', 'Ford\'s Theatre']);
+addCity('la', 'Los Angeles', 'US', ['Ahmanson Theatre', 'Mark Taper Forum', 'Hollywood Pantages Theatre', 'Dolby Theatre', 'Dorothy Chandler Pavilion', 'Geffen Playhouse', 'Walt Disney Concert Hall']);
+addCity('sf', 'San Francisco', 'US', ['Orpheum Theatre', 'Curran Theatre', 'Golden Gate Theatre', 'War Memorial Opera House', 'Toni Rembe Theater (A.C.T.)']);
+addCity('tor', 'Toronto', 'CA', ['Princess of Wales Theatre', 'Royal Alexandra Theatre', 'Ed Mirvish Theatre', 'CAA Theatre', 'Four Seasons Centre']);
+addCity('syd', 'Sydney', 'AU', ['Sydney Opera House', 'Capitol Theatre', 'Theatre Royal Sydney', 'Lyric Theatre Sydney']);
+addCity('mel', 'Melbourne', 'AU', ['Her Majesty\'s Theatre', 'Regent Theatre', 'Princess Theatre', 'Comedy Theatre', 'State Theatre (Arts Centre)']);
+
+const SHOWS = [];
+function addShows(region, text) {
+  text.trim().split('\n').forEach(l => {
+    const [t, th, o, c, k] = l.trim().split('|');
+    SHOWS.push({ id: region[0] + '-' + slug(t) + '-' + o, t, th, o: +o, c: c ? +c : 0, k: k || 'm', region });
+  });
+}
+addShows('broadway', `
+The Phantom of the Opera|majestic|1988|2023|m
+Chicago|ambassador|1996||m
+The Lion King|minskoff|1997||m
+Mamma Mia!|wintergarden|2001|2015|m
+Wicked|gershwin|2003||m
+Jersey Boys|augustwilson|2005|2017|m
+Mary Poppins|newamsterdam|2006|2013|m
+In the Heights|rodgers|2008|2011|m
+Billy Elliot|imperial|2008|2012|m
+South Pacific|beaumont|2008|2010|m
+Rock of Ages|hayes|2009|2015|m
+West Side Story|palace|2009|2011|m
+Next to Normal|booth|2009|2011|m
+Memphis|shubert|2009|2012|m
+Fela!|oneill|2009|2011|m
+A Little Night Music|kerr|2009|2011|m
+The Addams Family|luntfontanne|2010|2011|m
+Million Dollar Quartet|nederlander|2010|2011|m
+American Idiot|stjames|2010|2011|m
+Promises, Promises|broadwayth|2010|2011|m
+La Cage aux Folles|longacre|2010|2011|m
+Fences|jej|2010|2010|p
+Red|golden|2010|2010|p
+The Merchant of Venice|broadhurst|2010|2011|p
+Spider-Man: Turn Off the Dark|lyricny|2011|2014|m
+The Book of Mormon|oneill|2011||m
+Catch Me If You Can|neilsimon|2011|2011|m
+Sister Act|broadwayth|2011|2012|m
+How to Succeed in Business Without Really Trying|hirschfeld|2011|2012|m
+Anything Goes|sondheimny|2011|2012|m
+Priscilla Queen of the Desert|palace|2011|2012|m
+War Horse|beaumont|2011|2013|p
+Jerusalem|musicbox|2011|2011|p
+The Normal Heart|golden|2011|2011|p
+Arcadia|barrymore|2011|2011|p
+Follies|marquis|2011|2012|m
+Godspell|circle|2011|2012|m
+Porgy and Bess|rodgers|2012|2012|m
+Once|jacobs|2012|2015|m
+Newsies|nederlander|2012|2014|m
+Evita|marquis|2012|2013|m
+Jesus Christ Superstar|neilsimon|2012|2012|m
+Nice Work If You Can Get It|imperial|2012|2013|m
+Death of a Salesman|barrymore|2012|2012|p
+Peter and the Starcatcher|lenahorne|2012|2013|p
+Clybourne Park|kerr|2012|2012|p
+Annie|palace|2012|2014|m
+Who's Afraid of Virginia Woolf?|booth|2012|2013|p
+Cat on a Hot Tin Roof|rodgers|2012|2013|p
+Glengarry Glen Ross|schoenfeld|2012|2013|p
+Kinky Boots|hirschfeld|2013|2019|m
+Matilda the Musical|shubert|2013|2017|m
+Motown the Musical|luntfontanne|2013|2015|m
+Pippin|musicbox|2013|2015|m
+Rodgers + Hammerstein's Cinderella|broadwayth|2013|2015|m
+Vanya and Sonia and Masha and Spike|golden|2013|2013|p
+Lucky Guy|broadhurst|2013|2013|p
+Big Fish|neilsimon|2013|2013|m
+A Gentleman's Guide to Love and Murder|kerr|2013|2016|m
+After Midnight|lenahorne|2013|2014|m
+Waiting for Godot / No Man's Land|jej|2013|2014|p
+Twelfth Night / Richard III|belasco|2013|2014|p
+Les Misérables|imperial|2014|2016|m
+Aladdin|newamsterdam|2014||m
+Beautiful: The Carole King Musical|sondheimny|2014|2019|m
+Rocky|wintergarden|2014|2014|m
+Bullets Over Broadway|stjames|2014|2014|m
+Hedwig and the Angry Inch|belasco|2014|2015|m
+If/Then|rodgers|2014|2015|m
+Cabaret|studio54|2014|2015|m
+Violet|haimes|2014|2014|m
+Of Mice and Men|longacre|2014|2014|p
+A Raisin in the Sun|barrymore|2014|2014|p
+All the Way|neilsimon|2014|2014|p
+The Curious Incident of the Dog in the Night-Time|barrymore|2014|2016|p
+On the Town|lyricny|2014|2015|m
+It's Only a Play|jacobs|2014|2015|p
+The Last Ship|neilsimon|2014|2015|m
+Disgraced|lyceumny|2014|2015|p
+Finding Neverland|luntfontanne|2015|2016|m
+An American in Paris|palace|2015|2016|m
+Fun Home|circle|2015|2016|m
+Something Rotten!|stjames|2015|2017|m
+The King and I|beaumont|2015|2016|m
+The Audience|schoenfeld|2015|2015|p
+Wolf Hall Parts One & Two|wintergarden|2015|2015|p
+Hand to God|booth|2015|2016|p
+The Visit|lyceumny|2015|2015|m
+Hamilton|rodgers|2015||m
+Spring Awakening|lenahorne|2015|2016|m
+School of Rock|wintergarden|2015|2019|m
+On Your Feet!|marquis|2015|2017|m
+Allegiance|longacre|2015|2016|m
+Fiddler on the Roof|broadwayth|2015|2016|m
+The Color Purple|jacobs|2015|2017|m
+Waitress|lenahorne|2016|2020|m
+Shuffle Along|musicbox|2016|2016|m
+She Loves Me|studio54|2016|2016|m
+Tuck Everlasting|broadhurst|2016|2016|m
+Bright Star|jej|2016|2016|m
+American Psycho|schoenfeld|2016|2016|m
+The Humans|schoenfeld|2016|2017|p
+The Crucible|kerr|2016|2016|p
+Dear Evan Hansen|musicbox|2016|2022|m
+Natasha, Pierre & The Great Comet of 1812|imperial|2016|2017|m
+Holiday Inn|studio54|2016|2017|m
+Falsettos|kerr|2016|2017|m
+Cats|neilsimon|2016|2017|m
+A Bronx Tale|longacre|2016|2018|m
+Come From Away|schoenfeld|2017|2022|m
+Anastasia|broadhurst|2017|2019|m
+Hello, Dolly!|shubert|2017|2018|m
+Groundhog Day|augustwilson|2017|2017|m
+Bandstand|jacobs|2017|2017|m
+War Paint|nederlander|2017|2017|m
+Sunset Boulevard|palace|2017|2017|m
+Miss Saigon|broadwayth|2017|2018|m
+Oslo|beaumont|2017|2017|p
+A Doll's House, Part 2|golden|2017|2017|p
+Indecent|jej|2017|2017|p
+Sweat|studio54|2017|2017|p
+Sunday in the Park with George|hudson|2017|2017|m
+SpongeBob SquarePants|palace|2017|2018|m
+The Band's Visit|barrymore|2017|2019|m
+Once on This Island|circle|2017|2019|m
+Frozen|stjames|2018|2020|m
+Mean Girls|augustwilson|2018|2020|m
+Carousel|imperial|2018|2018|m
+My Fair Lady|beaumont|2018|2019|m
+Harry Potter and the Cursed Child|lyricny|2018||p
+Angels in America|neilsimon|2018|2018|p
+Three Tall Women|golden|2018|2018|p
+The Iceman Cometh|jacobs|2018|2018|p
+Escape to Margaritaville|marquis|2018|2018|m
+Summer: The Donna Summer Musical|luntfontanne|2018|2018|m
+Head Over Heels|hudson|2018|2019|m
+Pretty Woman|nederlander|2018|2019|m
+The Prom|longacre|2018|2019|m
+King Kong|broadwayth|2018|2019|m
+The Ferryman|jacobs|2018|2019|p
+To Kill a Mockingbird|shubert|2018|2025|p
+Network|belasco|2018|2019|p
+The Cher Show|neilsimon|2018|2019|m
+Choir Boy|friedman|2019|2019|p
+Kiss Me, Kate|studio54|2019|2019|m
+Ain't Too Proud|imperial|2019|2022|m
+Hadestown|kerr|2019||m
+Tootsie|marquis|2019|2020|m
+Beetlejuice|wintergarden|2019|2023|m
+Oklahoma!|circle|2019|2020|m
+What the Constitution Means to Me|hayes|2019|2019|p
+Moulin Rouge! The Musical|hirschfeld|2019||m
+David Byrne's American Utopia|hudson|2019|2022|m
+Jagged Little Pill|broadhurst|2019|2021|m
+Tina: The Tina Turner Musical|luntfontanne|2019|2022|m
+The Inheritance|barrymore|2019|2020|p
+Slave Play|golden|2019|2020|p
+A Christmas Carol|lyceumny|2019|2021|p
+West Side Story|broadwayth|2020|2020|m
+Girl from the North Country|belasco|2020|2022|m
+Six|lenahorne|2021||m
+Company|jacobs|2021|2022|m
+The Lehman Trilogy|nederlander|2021|2022|p
+Caroline, or Change|studio54|2021|2022|m
+Diana|longacre|2021|2021|m
+Mrs. Doubtfire|sondheimny|2021|2022|m
+Clyde's|hayes|2021|2022|p
+Trouble in Mind|haimes|2021|2022|p
+MJ the Musical|neilsimon|2022||m
+The Music Man|wintergarden|2022|2023|m
+Funny Girl|augustwilson|2022|2023|m
+Paradise Square|barrymore|2022|2022|m
+Mr. Saturday Night|nederlander|2022|2022|m
+A Strange Loop|lyceumny|2022|2023|m
+Take Me Out|hayes|2022|2022|p
+POTUS|shubert|2022|2022|p
+Plaza Suite|hudson|2022|2022|p
+Hangmen|golden|2022|2022|p
+& Juliet|sondheimny|2022||m
+Some Like It Hot|shubert|2022|2023|m
+Kimberly Akimbo|booth|2022|2024|m
+Into the Woods|stjames|2022|2023|m
+1776|haimes|2022|2023|m
+Almost Famous|jacobs|2022|2023|m
+A Beautiful Noise|broadhurst|2022|2024|m
+Leopoldstadt|longacre|2022|2023|p
+The Piano Lesson|barrymore|2022|2023|p
+Death of a Salesman|hudson|2022|2023|p
+Topdog/Underdog|golden|2022|2023|p
+Sweeney Todd|luntfontanne|2023|2023|m
+Parade|jacobs|2023|2023|m
+Shucked|nederlander|2023|2024|m
+New York, New York|stjames|2023|2023|m
+Camelot|beaumont|2023|2023|m
+Bad Cinderella|imperial|2023|2023|m
+Life of Pi|schoenfeld|2023|2023|p
+Good Night, Oscar|belasco|2023|2023|p
+Prima Facie|golden|2023|2023|p
+Fat Ham|haimes|2023|2023|p
+Back to the Future|wintergarden|2023|2025|m
+Here Lies Love|broadwayth|2023|2023|m
+Merrily We Roll Along|hudson|2023|2024|m
+Purlie Victorious|musicbox|2023|2024|p
+Harmony|barrymore|2023|2024|m
+Gutenberg! The Musical!|jej|2023|2024|m
+How to Dance in Ohio|belasco|2023|2024|m
+Spamalot|stjames|2023|2024|m
+Appropriate|belasco|2023|2024|p
+Days of Wine and Roses|studio54|2024|2024|m
+The Notebook|schoenfeld|2024|2024|m
+Water for Elephants|imperial|2024|2024|m
+Hell's Kitchen|shubert|2024||m
+The Outsiders|jacobs|2024||m
+Suffs|musicbox|2024|2025|m
+Lempicka|longacre|2024|2024|m
+The Great Gatsby|broadwayth|2024||m
+Cabaret at the Kit Kat Club|augustwilson|2024||m
+Illinoise|stjames|2024|2024|m
+The Who's Tommy|nederlander|2024|2024|m
+Stereophonic|golden|2024|2025|p
+Mother Play|hayes|2024|2024|p
+Patriots|barrymore|2024|2024|p
+An Enemy of the People|circle|2024|2024|p
+Mary Jane|friedman|2024|2024|p
+Uncle Vanya|beaumont|2024|2024|p
+Oh, Mary!|lyceumny|2024||p
+Maybe Happy Ending|belasco|2024||m
+Death Becomes Her|luntfontanne|2024||m
+Swept Away|longacre|2024|2024|m
+Tammy Faye|palace|2024|2024|m
+Once Upon a Mattress|hudson|2024|2025|m
+Our Town|barrymore|2024|2025|p
+Romeo + Juliet|circle|2024|2025|p
+Yellow Face|haimes|2024|2024|p
+Gypsy|majestic|2024|2025|m
+Sunset Boulevard|stjames|2024|2025|m
+Glengarry Glen Ross|palace|2025|2025|p
+Othello|barrymore|2025|2025|p
+Good Night, and Good Luck|wintergarden|2025|2025|p
+Boop! The Musical|broadhurst|2025|2025|m
+Smash|imperial|2025|2025|m
+Real Women Have Curves|jej|2025|2025|m
+Buena Vista Social Club|schoenfeld|2025||m
+Dead Outlaw|longacre|2025|2025|m
+Operation Mincemeat|golden|2025||m
+Just in Time|circle|2025||m
+Pirates! The Penzance Musical|haimes|2025|2025|m
+John Proctor Is the Villain|booth|2025|2025|p
+Purpose|hayes|2025|2025|p
+The Picture of Dorian Gray|musicbox|2025|2025|p
+Stranger Things: The First Shadow|marquis|2025||p
+Mamma Mia!|wintergarden|2025||m
+Ragtime|beaumont|2025||m
+Chess|imperial|2025||m
+Waiting for Godot|hudson|2025||p`);
+addShows('westend', `
+The Mousetrap|stmartins|1974||p
+Les Misérables|sondheimlon|1985||m
+The Phantom of the Opera|hismajestys|1986||m
+Blood Brothers|phoenix|1988|2012|m
+The Woman in Black|fortune|1989|2023|p
+Chicago|garrick|1997|2012|m
+The Lion King|lyceumlon|1999||m
+Mamma Mia!|novello|1999||m
+We Will Rock You|dominion|2002|2014|m
+Billy Elliot the Musical|victoriapalace|2005|2016|m
+The 39 Steps|criterion|2006|2015|p
+Dirty Dancing|aldwych|2006|2011|m
+Wicked|apollovic|2006||m
+Jersey Boys|piccadilly|2008|2022|m
+Oliver!|drurylane|2009|2011|m
+Priscilla Queen of the Desert|palacelon|2009|2011|m
+Sister Act|palladium|2009|2010|m
+Thriller Live|lyriclon|2009|2020|m
+War Horse|gillianlynne|2009|2016|p
+Legally Blonde|savoy|2010|2012|m
+Love Never Dies|adelphi|2010|2011|m
+Shrek the Musical|drurylane|2011|2013|m
+Matilda the Musical|cambridge|2011||m
+Ghost the Musical|piccadilly|2011|2012|m
+The Wizard of Oz|palladium|2011|2012|m
+Betty Blue Eyes|novello|2011|2011|m
+Jerusalem|apollo|2011|2011|p
+One Man, Two Guvnors|haymarket|2011|2014|p
+Rock of Ages|garrick|2011|2013|m
+Singin' in the Rain|palacelon|2012|2013|m
+Top Hat|aldwych|2012|2013|m
+The Bodyguard|adelphi|2012|2014|m
+Viva Forever!|piccadilly|2012|2013|m
+The Book of Mormon|princeofwales|2013||m
+Charlie and the Chocolate Factory|drurylane|2013|2017|m
+Once|phoenix|2013|2015|m
+The Commitments|palacelon|2013|2015|m
+From Here to Eternity|shaftesbury|2013|2014|m
+Stephen Ward|aldwych|2013|2014|m
+The Curious Incident of the Dog in the Night-Time|gielgud|2013|2017|p
+Miss Saigon|princeedward|2014|2016|m
+Memphis|shaftesbury|2014|2015|m
+Made in Dagenham|adelphi|2014|2015|m
+The Play That Goes Wrong|duchess|2014||p
+Beautiful: The Carole King Musical|aldwych|2015|2017|m
+Kinky Boots|adelphi|2015|2019|m
+Gypsy|savoy|2015|2015|m
+Guys and Dolls|savoy|2015|2016|m
+Bend It Like Beckham|phoenix|2015|2016|m
+Funny Girl|savoy|2016|2016|m
+Aladdin|princeedward|2016|2019|m
+School of Rock|gillianlynne|2016|2020|m
+Motown the Musical|shaftesbury|2016|2019|m
+Dreamgirls|savoy|2016|2019|m
+Harry Potter and the Cursed Child|palacelon|2016||p
+Hangmen|wyndhams|2016|2016|p
+Half a Sixpence|noelcoward|2016|2017|m
+42nd Street|drurylane|2017|2019|m
+Hamilton|victoriapalace|2017||m
+Everybody's Talking About Jamie|apollo|2017|2021|m
+Young Frankenstein|garrick|2017|2018|m
+The Ferryman|gielgud|2017|2018|p
+An American in Paris|dominion|2017|2018|m
+Annie|piccadilly|2017|2018|m
+Bat Out of Hell|dominion|2017|2018|m
+Tina: The Tina Turner Musical|aldwych|2018|2024|m
+Company|gielgud|2018|2019|m
+Chicago|phoenix|2018|2019|m
+The King and I|palladium|2018|2018|m
+Six|vaudeville|2019||m
+Come From Away|phoenix|2019|2023|m
+Dear Evan Hansen|noelcoward|2019|2020|m
+Waitress|adelphi|2019|2020|m
+& Juliet|shaftesbury|2019|2023|m
+Mary Poppins|princeedward|2019|2023|m
+The Lehman Trilogy|piccadilly|2019|2019|p
+Magic Goes Wrong|vaudeville|2019|2020|p
+Joseph and the Amazing Technicolor Dreamcoat|palladium|2019|2021|m
+Leopoldstadt|wyndhams|2020|2020|p
+Pretty Woman|savoy|2020|2022|m
+Back to the Future|adelphi|2021||m
+Frozen|drurylane|2021|2024|m
+Moulin Rouge! The Musical|piccadilly|2021||m
+Cinderella|gillianlynne|2021|2022|m
+Cabaret at the Kit Kat Club|playhouse|2021||m
+Life of Pi|wyndhams|2021|2022|p
+Get Up, Stand Up!|lyriclon|2021|2022|m
+Hairspray|coliseum|2021|2021|m
+The Drifters Girl|garrick|2021|2022|m
+Jerusalem|apollo|2022|2022|p
+Prima Facie|haroldpinter|2022|2022|p
+Good|haroldpinter|2022|2022|p
+Grease|dominion|2022|2023|m
+Mrs. Doubtfire|shaftesbury|2023|2024|m
+Sunset Boulevard|savoy|2023|2024|m
+The Little Big Things|sohoplace|2023|2023|m
+Operation Mincemeat|fortune|2023||m
+Stranger Things: The First Shadow|phoenix|2023||p
+Crazy for You|gillianlynne|2023|2024|m
+Patriots|noelcoward|2023|2023|p
+Dear England|princeedward|2023|2023|p
+Hadestown|lyriclon|2024||m
+MJ the Musical|princeedward|2024||m
+Mean Girls|savoy|2024|2024|m
+Standing at the Sky's Edge|gillianlynne|2024|2024|m
+The Devil Wears Prada|dominion|2024||m
+Next to Normal|wyndhams|2024|2024|m
+Titanique|criterion|2024|2025|m
+Fawlty Towers|apollo|2024||p
+Romeo & Juliet|dukeofyorks|2024|2024|p
+Oliver!|gielgud|2024|2025|m
+Paddington The Musical|savoy|2025||m
+Evita|palladium|2025|2025|m
+The Great Gatsby|coliseum|2025|2025|m`);
+
+const CATS = {
+  broadway: 'Broadway', offbroadway: 'Off-Broadway', offoff: 'Off-Off-Broadway',
+  westend: 'West End', offwestend: 'Off-West End', fringe: 'Fringe',
+  regional: 'Regional', touring: 'Touring', intl: 'International', opera: 'Opera & dance',
+};
+const TIERS = { broadway: 'Broadway', offbroadway: 'Off-Broadway', offoff: 'Off-Off-Broadway', opera: 'Opera, dance & concert halls', westend: 'West End', offwestend: 'Off-West End', fringe: 'Fringe', house: 'Theatres' };
+const TIER_ORDER = ['broadway', 'westend', 'offbroadway', 'offwestend', 'offoff', 'fringe', 'opera', 'house'];
+const KINDS = { m: 'Musical', p: 'Play', o: 'Opera', d: 'Dance', x: 'Other' };
+const FIRST_YEAR = 2010;
+const THIS_YEAR = new Date().getFullYear();
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/* ---------- state + storage ---------- */
+const state = { visits: [], theatres: [], shows: [], tab: 'diary', region: 'broadway', year: THIS_YEAR, filter: 'all', q: '', dq: '', loaded: false, offline: false, slow: false };
+let db = null;
+const mem = { visits: new Map(), theatres: new Map(), shows: new Map() };
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+const COLS = ['visits', 'theatres', 'shows'];
+const LS_KEY = 'stagedoor:v1';
+
+async function put(col, id, data) {
+  if (db) return db.collection(col).doc(id).set(data);
+  mem[col].set(id, data); lsSave(); fromMem(col);
+}
+async function drop(col, id) {
+  if (db) return db.collection(col).doc(id).delete();
+  mem[col].delete(id); lsSave(); fromMem(col);
+}
+function fromMem(col) { state[col] = [...mem[col]].map(([id, d]) => ({ id, ...d })); derive(); render(); }
+
+// Outside claude.ai there is no db, so the diary lives in this browser's storage.
+function lsLoad() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    COLS.forEach(c => Object.entries(d[c] || {}).forEach(([id, v]) => mem[c].set(id, v)));
+    localStorage.setItem(LS_KEY, JSON.stringify(d));
+    return true;
+  } catch { return false; }
+}
+function lsSave() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(COLS.map(c => [c, Object.fromEntries(mem[c])])))); state.local = true; }
+  catch { state.local = false; }
+}
+function exportBackup() {
+  const data = Object.fromEntries(COLS.map(c => [c, Object.fromEntries(mem[c])]));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  a.download = `stage-door-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function importBackup(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (!COLS.some(c => d[c] && typeof d[c] === 'object')) throw new Error('not a backup');
+    COLS.forEach(c => Object.entries(d[c] || {}).forEach(([id, v]) => mem[c].set(id, v)));
+    lsSave(); COLS.forEach(c => { state[c] = [...mem[c]].map(([id, x]) => ({ id, ...x })); });
+    state.importMsg = `Imported ${Object.keys(d.visits || {}).length} shows from ${file.name}.`;
+  } catch { state.importMsg = `${file.name} isn't a Stage Door backup, so nothing was imported.`; }
+  derive(); render();
+}
+
+(async () => {
+  const timer = setTimeout(() => { if (!state.loaded) { state.slow = true; render(); } }, 10000);
+  try { db = window.claude ? await window.claude.use('db') : null; } catch { db = null; }
+  if (!db) {
+    clearTimeout(timer); state.offline = true; state.local = lsLoad(); state.loaded = true;
+    COLS.forEach(c => { state[c] = [...mem[c]].map(([id, d]) => ({ id, ...d })); });
+    derive(); render(); return;
+  }
+  let pending = 3;
+  ['visits', 'theatres', 'shows'].forEach(col => {
+    let first = true;
+    db.collection(col).onSnapshot(snap => {
+      state[col] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (first && !snap.metadata.fromCache) { first = false; if (--pending === 0) { state.loaded = true; state.slow = false; clearTimeout(timer); } }
+      derive(); render();
+    }, () => { if (first) { first = false; if (--pending === 0) { state.loaded = true; clearTimeout(timer); } } render(); });
+  });
+})();
+
+/* ---------- derived ---------- */
+let D = {};
+function derive() {
+  const theatres = { ...TH };
+  state.theatres.forEach(t => { theatres[t.id] = { id: t.id, n: t.name, city: t.city, tier: t.tier || 'house', aka: '', custom: true }; });
+  const cityNames = {};
+  state.theatres.forEach(t => { if (t.city && !CITIES[t.city]) cityNames[t.city] = t.cityName || t.city; });
+  state.visits.forEach(v => { if (v.city && !CITIES[v.city]) cityNames[v.city] = v.cityName || cityNames[v.city] || v.city; });
+  const shows = SHOWS.slice();
+  state.shows.forEach(s => shows.push({ id: s.id, t: s.title, th: s.theatreId, o: +s.open, c: s.close ? +s.close : 0, k: s.kind || 'm', region: s.region, custom: true }));
+  const showById = Object.fromEntries(shows.map(s => [s.id, s]));
+  const byShow = {}, byTheatre = {};
+  state.visits.forEach(v => {
+    if (v.showId) (byShow[v.showId] = byShow[v.showId] || []).push(v);
+    if (v.theatreId) byTheatre[v.theatreId] = (byTheatre[v.theatreId] || 0) + 1;
+  });
+  D = { theatres, cityNames, shows, showById, byShow, byTheatre };
+}
+const cityName = k => (CITIES[k] ? CITIES[k].n : D.cityNames[k] || k || '');
+const theatreName = v => (v.theatreId && D.theatres[v.theatreId] ? D.theatres[v.theatreId].n : v.theatreName || '');
+const sortKey = v => (v.date || (v.year ? v.year + '-00-00' : '0000')) + (v.created || '');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function stars(r, cls = '') {
+  const pct = Math.max(0, Math.min(5, r || 0)) / 5 * 100;
+  return `<span class="stars ${cls}" aria-label="${r ? r + ' out of 5 stars' : 'Not rated'}">★★★★★<span class="fill" style="width:${pct}%">★★★★★</span></span>`;
+}
+function runLabel(s) { return s.c ? (s.c === s.o ? String(s.o) : `${s.o}–${s.c}`) : `${s.o}–present`; }
+
+/* ---------- render ---------- */
+const view = document.getElementById('view');
+function render() {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+  const banner = state.offline && state.local
+    ? (state.tab === 'diary' ? `<div class="note row" style="justify-content:space-between"><span>Your diary is saved in this browser. Export a backup now and then, and import it to move to another device.</span>
+        <span class="row"><button class="btn" data-act="export">Export backup</button><label class="btn" for="import-file">Import</label><input type="file" id="import-file" accept="application/json,.json" hidden></span></div>` : '')
+      + (state.importMsg ? `<p class="note">${esc(state.importMsg)}</p>` : '')
+    : state.offline
+    ? `<p class="note">This browser is blocking storage, so anything you log here disappears when you close the page.</p>`
+    : state.slow ? `<p class="note">Your diary is taking a while to load. It will appear here as soon as it arrives.</p>` : '';
+  const html = state.tab === 'shows' ? renderShows() : state.tab === 'theatres' ? renderTheatres() : renderDiary();
+  const focusId = document.activeElement && document.activeElement.id;
+  const caret = focusId && document.activeElement.selectionStart;
+  view.innerHTML = banner + html;
+  if (focusId) { const el = document.getElementById(focusId); if (el && el !== document.body) { el.focus(); if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); } }
+}
+
+function renderDiary() {
+  const v = state.visits;
+  const rated = v.filter(x => x.rating > 0);
+  const avg = rated.length ? (rated.reduce((a, x) => a + x.rating, 0) / rated.length).toFixed(1) : '–';
+  const visitedTheatres = new Set(v.map(x => x.theatreId || (x.theatreName && 'n:' + x.theatreName)).filter(Boolean)).size;
+  const thisYear = v.filter(x => +x.year === THIS_YEAR).length;
+  const stats = `<section class="stats" aria-label="Totals">
+    <div class="stat"><b>${v.length}</b><span>shows seen</span></div>
+    <div class="stat"><b>${visitedTheatres}</b><span>theatres</span></div>
+    <div class="stat"><b>${avg}</b><span>average rating</span></div>
+    <div class="stat"><b>${thisYear}</b><span>in ${THIS_YEAR}</span></div></section>`;
+  if (!state.loaded) return stats + `<div class="empty"><h2>Opening the house…</h2><p>Your diary is loading.</p></div>`;
+  if (!v.length) return stats + `<div class="empty"><h2>Your diary is empty</h2><p>Log the first show you remember, or open the Shows tab and tick off everything you've seen on Broadway and in the West End year by year.</p><div class="row"><button class="btn primary" data-act="log">Log a show</button><button class="btn" data-tab="shows">Browse shows by year</button></div></div>`;
+  const q = state.dq.trim().toLowerCase();
+  const list = v.filter(x => !q || [x.title, theatreName(x), cityName(x.city), x.notes].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+  const byYear = {};
+  list.forEach(x => (byYear[x.year || 'Undated'] = byYear[x.year || 'Undated'] || []).push(x));
+  const years = Object.keys(byYear).sort((a, b) => (b === 'Undated' ? -1 : a === 'Undated' ? 1 : b - a));
+  return stats + `<div class="toolbar"><input type="search" id="dq" placeholder="Search shows, theatres, notes" value="${esc(state.dq)}" aria-label="Search diary"></div>` +
+    (list.length ? years.map(y => `<section class="stubs"><div class="year-head"><h2>${esc(y)}</h2><span>${byYear[y].length} ${byYear[y].length === 1 ? 'show' : 'shows'}</span></div>${byYear[y].map(stub).join('')}</section>`).join('')
+      : `<p class="note">Nothing matches “${esc(state.dq)}”.</p>`);
+}
+function stub(v) {
+  let m = '', d = '—', y = v.year || '';
+  if (v.date) { const [yy, mm, dd] = v.date.split('-'); m = MONTHS[+mm - 1]; d = String(+dd); y = yy; }
+  const meta = [theatreName(v), cityName(v.city)].filter(Boolean).join(' · ');
+  return `<button class="stub" data-act="edit" data-id="${esc(v.id)}">
+    <span class="stub-date"><span class="m">${m || 'Year'}</span><span class="d">${d}</span><span class="y">${esc(y)}</span></span>
+    <span class="stub-body">
+      <span class="stub-title">${esc(v.title)}</span>
+      <span class="stub-meta">${esc(meta)}${v.seat ? ' · ' + esc(v.seat) : ''}</span>
+      <span class="row">${stars(v.rating)}${v.cat ? `<span class="pill">${esc(CATS[v.cat] || v.cat)}</span>` : ''}${v.kind ? `<span class="pill">${esc(KINDS[v.kind] || '')}</span>` : ''}</span>
+      ${v.notes ? `<span class="stub-notes">${esc(v.notes)}</span>` : ''}
+    </span></button>`;
+}
+
+function showsFor(region, year) {
+  return D.shows.filter(s => s.region === region && s.o <= year && (!s.c || s.c >= year));
+}
+function renderShows() {
+  const { region, year, filter } = state;
+  const all = showsFor(region, year);
+  const seen = s => (D.byShow[s.id] || []).length > 0;
+  const q = state.q.trim().toLowerCase();
+  const list = all.filter(s => (filter === 'all' || (filter === 'seen') === seen(s)) && (!q || s.t.toLowerCase().includes(q)))
+    .sort((a, b) => (b.o === year) - (a.o === year) || a.t.localeCompare(b.t));
+  const seenCount = all.filter(seen).length;
+  const yearHasVisit = y => showsFor(region, y).some(s => (D.byShow[s.id] || []).some(v => +v.year === y));
+  const years = [];
+  for (let y = THIS_YEAR; y >= FIRST_YEAR; y--) years.push(y);
+  const label = region === 'broadway' ? 'Broadway' : 'West End';
+  const tick = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const rows = list.map(s => {
+    const vs = D.byShow[s.id] || [];
+    const th = D.theatres[s.th];
+    const inYear = vs.filter(v => +v.year === year).length;
+    const opened = s.o === year ? '<span class="pill hot">Opened this year</span>' : '';
+    const closed = s.c === year && s.o !== year ? '<span class="pill">Closed this year</span>' : '';
+    return `<div class="item">
+      <button class="tick" data-act="tick" data-show="${esc(s.id)}" aria-pressed="${vs.length > 0}" aria-label="${vs.length ? 'Seen: ' : 'Mark as seen: '}${esc(s.t)}">${tick}</button>
+      <div class="item-main"><div class="item-title">${esc(s.t)}</div>
+        <div class="item-sub">${esc(th ? th.n : '')} · ${KINDS[s.k] || ''} · ${runLabel(s)}</div>
+        ${opened || closed ? `<div class="row" style="margin-top:4px">${opened}${closed}</div>` : ''}</div>
+      <div class="item-side">${vs.length ? stars(Math.max(...vs.map(v => v.rating || 0))) + `<span>${inYear ? 'Seen in ' + year : 'Seen ' + vs.map(v => v.year).filter(Boolean).sort().join(', ')}</span>` : ''}</div>
+    </div>`;
+  }).join('');
+  return `<div class="toolbar"><div class="seg" role="group" aria-label="Region">
+      <button data-act="region" data-v="broadway" aria-pressed="${region === 'broadway'}">Broadway</button>
+      <button data-act="region" data-v="westend" aria-pressed="${region === 'westend'}">West End</button></div>
+      <div class="seg" role="group" aria-label="Filter">
+      ${['all', 'seen', 'unseen'].map(f => `<button data-act="filter" data-v="${f}" aria-pressed="${filter === f}">${f === 'all' ? 'All' : f === 'seen' ? 'Seen' : 'Not seen'}</button>`).join('')}</div></div>
+    <div class="years" role="group" aria-label="Year">${years.map(y => `<button data-act="year" data-v="${y}" aria-pressed="${y === year}">${y}${yearHasVisit(y) ? '<span class="dot" aria-label="has shows you saw"></span>' : ''}</button>`).join('')}</div>
+    <div class="cat-head"><div><span class="eyebrow">${label} · playing in</span><h2>${year}</h2>
+      <p>You've seen ${seenCount} of the ${all.length} productions on this list.</p></div>
+      <button class="btn" data-act="addshow">+ Add a missing show</button></div>
+    <div class="meter" aria-hidden="true"><i style="width:${all.length ? seenCount / all.length * 100 : 0}%"></i></div>
+    <div class="toolbar"><input type="search" id="sq" placeholder="Search ${label} ${year}" value="${esc(state.q)}" aria-label="Search shows"></div>
+    ${list.length ? `<div class="list">${rows}</div>` : `<p class="note">No shows match. Add one with “Add a missing show”.</p>`}
+    <p class="note">This list covers the main ${label} productions from ${FIRST_YEAR} on, built from memory, so a few dates or venues may be off and some shorter runs are missing. Add anything that's missing and it joins the list for every year it ran.</p>`;
+}
+
+function renderTheatres() {
+  const visitedCities = new Set(state.visits.map(v => v.city).filter(Boolean));
+  const allT = Object.values(D.theatres);
+  const count = f => allT.filter(f).filter(t => D.byTheatre[t.id]).length;
+  const total = f => allT.filter(f).length;
+  const bw = t => t.tier === 'broadway', we = t => t.tier === 'westend';
+  const visitedTotal = allT.filter(t => D.byTheatre[t.id]).length;
+  const other = [...visitedCities].filter(c => c !== 'nyc' && c !== 'lon');
+  const counters = `<section class="counters">
+    <div class="counter"><b>${visitedTotal}</b><span>theatres visited</span></div>
+    <div class="counter"><b>${count(bw)}<small> / ${total(bw)}</small></b><span>Broadway houses</span><div class="meter"><i style="width:${count(bw) / total(bw) * 100}%"></i></div></div>
+    <div class="counter"><b>${count(we)}<small> / ${total(we)}</small></b><span>West End houses</span><div class="meter"><i style="width:${count(we) / total(we) * 100}%"></i></div></div>
+    <div class="counter"><b>${new Set(['nyc', 'lon', ...visitedCities].filter(c => visitedCities.has(c))).size}</b><span>cities with a show logged</span></div></section>`;
+  const cityKeys = ['nyc', 'lon', ...other.sort((a, b) => cityName(a).localeCompare(cityName(b)))];
+  const cities = cityKeys.map(key => {
+    const ts = allT.filter(t => t.city === key);
+    const v = ts.filter(t => D.byTheatre[t.id]).length;
+    const tiers = TIER_ORDER.filter(tr => ts.some(t => t.tier === tr)).map(tr => {
+      const group = ts.filter(t => t.tier === tr).sort((a, b) => (!!D.byTheatre[b.id] - !!D.byTheatre[a.id]) || a.n.localeCompare(b.n));
+      const gv = group.filter(t => D.byTheatre[t.id]).length;
+      return `<div class="tier"><h3>${TIERS[tr]} <em>${gv}/${group.length}</em></h3><div class="chips">${group.map(t => {
+        const n = D.byTheatre[t.id];
+        return `<span class="chip${n ? ' on' : ''}" title="${esc(t.aka ? t.n + ' (' + t.aka + ')' : t.n)}">${esc(t.n)}${n > 1 ? `<sup>×${n}</sup>` : ''}</span>`;
+      }).join('')}</div></div>`;
+    }).join('');
+    return `<section class="city"><div class="city-head"><h2>${esc(cityName(key))}</h2><span>${v} of ${ts.length} visited</span></div>${tiers || '<p class="note">No theatres listed here yet. Log a show to add one.</p>'}</section>`;
+  }).join('');
+  return counters + cities + `<p class="note">Other cities appear here once you log a show there, with every theatre in that city listed so you can see what's left. Add a theatre from the log form if one is missing.</p>`;
+}
+
+/* ---------- sheets ---------- */
+const overlay = document.getElementById('overlay');
+const sheet = document.getElementById('sheet');
+let editing = null, sheetMode = null, armedDelete = false;
+
+function cityOptions(sel) {
+  const seeded = Object.keys(CITIES).filter(k => k !== 'nyc' && k !== 'lon').sort((a, b) => CITIES[a].n.localeCompare(CITIES[b].n));
+  const custom = Object.keys(D.cityNames).sort((a, b) => cityName(a).localeCompare(cityName(b)));
+  const opt = k => `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${esc(cityName(k))}</option>`;
+  return opt('nyc') + opt('lon') + `<optgroup label="Elsewhere">${[...seeded, ...custom].map(opt).join('')}</optgroup><option value="__new"${sel === '__new' ? ' selected' : ''}>Another city…</option>`;
+}
+function theatreOptions(city, sel) {
+  const ts = Object.values(D.theatres).filter(t => t.city === city);
+  const groups = TIER_ORDER.filter(tr => ts.some(t => t.tier === tr)).map(tr =>
+    `<optgroup label="${TIERS[tr]}">${ts.filter(t => t.tier === tr).sort((a, b) => a.n.localeCompare(b.n)).map(t => `<option value="${esc(t.id)}"${t.id === sel ? ' selected' : ''}>${esc(t.n)}</option>`).join('')}</optgroup>`).join('');
+  return `<option value="">Choose a theatre</option>${groups}<option value="__new"${sel === '__new' ? ' selected' : ''}>A theatre not listed…</option>`;
+}
+function defaultCat(theatreId, city) {
+  const t = D.theatres[theatreId];
+  if (t && t.tier !== 'house') return t.tier;
+  const c = CITIES[city];
+  return c && !COUNTRIES_REGIONAL.includes(c.c) ? 'intl' : 'regional';
+}
+
+function openVisit(pre) {
+  sheetMode = 'visit'; editing = pre; armedDelete = false;
+  const v = { city: 'nyc', year: THIS_YEAR, rating: 0, kind: 'm', ...pre };
+  sheet.innerHTML = `<h2>${v.id ? 'Edit show' : 'Log a show'}</h2>
+    <label>Show<input class="field" id="f-title" list="f-titles" required value="${esc(v.title || '')}" placeholder="e.g. Hadestown" autocomplete="off"></label>
+    <datalist id="f-titles">${[...new Set(D.shows.map(s => s.t))].sort().map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+    <div class="grid2">
+      <label>City<select class="field" id="f-city">${cityOptions(v.city)}</select></label>
+      <label id="f-newcity-wrap" hidden>City name<input class="field" id="f-newcity" placeholder="e.g. Vienna"></label>
+      <label>Theatre<select class="field" id="f-theatre">${theatreOptions(v.city, v.theatreId || (v.theatreName ? '__new' : ''))}</select></label>
+    </div>
+    <label id="f-newtheatre-wrap" hidden>Theatre name<input class="field" id="f-newtheatre" value="${esc(v.theatreId ? '' : v.theatreName || '')}" placeholder="e.g. Oper Frankfurt"></label>
+    <div class="grid2">
+      <label>Date<input class="field" type="date" id="f-date" value="${esc(v.date || '')}"></label>
+      <label>Year (if you don't know the date)<input class="field" type="number" id="f-year" min="1900" max="2100" value="${esc(v.year || '')}"></label>
+    </div>
+    <div class="grid2">
+      <label>Category<select class="field" id="f-cat">${Object.entries(CATS).map(([k, n]) => `<option value="${k}"${k === (v.cat || defaultCat(v.theatreId, v.city)) ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Type<select class="field" id="f-kind">${Object.entries(KINDS).map(([k, n]) => `<option value="${k}"${k === v.kind ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+    </div>
+    <label>Rating<span class="rating-row"><span class="stars stars-input" id="f-rating" role="slider" tabindex="0" aria-label="Rating" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${v.rating || 0}" data-v="${v.rating || 0}">★★★★★<span class="fill" style="width:${(v.rating || 0) / 5 * 100}%">★★★★★</span></span><output id="f-rating-out">${v.rating ? v.rating : '–'}</output><button type="button" class="linkish" data-act="clear-rating">Clear</button></span></label>
+    <label>Seat<input class="field" id="f-seat" value="${esc(v.seat || '')}" placeholder="e.g. Orchestra, Row F, Seat 12"></label>
+    <label>Notes<textarea class="field" id="f-notes" placeholder="Cast, standbys, moments you want to remember">${esc(v.notes || '')}</textarea></label>
+    <p class="err" id="f-err" hidden></p>
+    <div class="sheet-actions">${v.id ? '<button type="button" class="btn ghost danger" data-act="delete">Delete</button>' : ''}
+      <span class="right"><button type="button" class="btn ghost" data-act="close">Cancel</button><button type="submit" class="btn primary">${v.id ? 'Save changes' : 'Add to diary'}</button></span></div>`;
+  editing = { ...v };
+  syncCityFields();
+  overlay.hidden = false;
+  if (!v.title) document.getElementById('f-title').focus();
+}
+function syncCityFields() {
+  const city = document.getElementById('f-city').value;
+  const isNewCity = city === '__new';
+  document.getElementById('f-newcity-wrap').hidden = !isNewCity;
+  const thSel = document.getElementById('f-theatre');
+  thSel.closest('label').hidden = isNewCity;
+  document.getElementById('f-newtheatre-wrap').hidden = !(isNewCity || thSel.value === '__new');
+}
+function setRating(r) {
+  const el = document.getElementById('f-rating');
+  r = Math.max(0, Math.min(5, Math.round(r * 2) / 2));
+  el.dataset.v = r; el.setAttribute('aria-valuenow', r);
+  el.querySelector('.fill').style.width = (r / 5 * 100) + '%';
+  document.getElementById('f-rating-out').textContent = r ? r : '–';
+}
+
+function openAddShow() {
+  sheetMode = 'show'; editing = null;
+  const city = state.region === 'broadway' ? 'nyc' : 'lon';
+  const ts = Object.values(D.theatres).filter(t => t.city === city && t.tier === state.region).sort((a, b) => a.n.localeCompare(b.n));
+  sheet.innerHTML = `<h2>Add a ${state.region === 'broadway' ? 'Broadway' : 'West End'} show</h2>
+    <label>Title<input class="field" id="s-title" required></label>
+    <label>Theatre<select class="field" id="s-theatre">${ts.map(t => `<option value="${t.id}">${esc(t.n)}</option>`).join('')}</select></label>
+    <div class="grid2"><label>Opened<input class="field" type="number" id="s-open" value="${state.year}" min="1900" max="2100"></label>
+      <label>Closed (blank if still running)<input class="field" type="number" id="s-close" min="1900" max="2100"></label></div>
+    <label>Type<select class="field" id="s-kind">${Object.entries(KINDS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
+    <p class="err" id="f-err" hidden></p>
+    <div class="sheet-actions"><span class="right"><button type="button" class="btn ghost" data-act="close">Cancel</button><button type="submit" class="btn primary">Add to list</button></span></div>`;
+  overlay.hidden = false;
+  document.getElementById('s-title').focus();
+}
+function closeSheet() { overlay.hidden = true; sheet.innerHTML = ''; editing = null; sheetMode = null; }
+function showErr(msg) { const e = document.getElementById('f-err'); e.textContent = msg; e.hidden = false; }
+
+async function saveVisit() {
+  const val = id => document.getElementById(id).value.trim();
+  const title = val('f-title');
+  if (!title) return showErr('Add the name of the show.');
+  let city = val('f-city'), cityNm = '';
+  if (city === '__new') {
+    cityNm = val('f-newcity');
+    if (!cityNm) return showErr('Add the city name.');
+    const match = Object.keys(CITIES).find(k => CITIES[k].n.toLowerCase() === cityNm.toLowerCase());
+    city = match || ('x-' + slug(cityNm));
+  } else cityNm = cityName(city);
+  let theatreId = city === val('f-city') ? val('f-theatre') : '__new';
+  let theatreNm = '';
+  if (theatreId === '__new' || !theatreId) {
+    theatreNm = val('f-newtheatre');
+    if (theatreId === '__new' && !theatreNm) return showErr('Add the theatre name, or pick one from the list.');
+    if (theatreNm) {
+      const existing = Object.values(D.theatres).find(t => t.city === city && t.n.toLowerCase() === theatreNm.toLowerCase());
+      if (existing) theatreId = existing.id;
+      else {
+        theatreId = 'c-' + uid();
+        const t = { name: theatreNm, city, cityName: cityNm, tier: 'house' };
+        try { await put('theatres', theatreId, t); } catch (e) { return showErr(saveMsg(e)); }
+      }
+    } else theatreId = '';
+  }
+  const date = val('f-date');
+  const year = date ? +date.slice(0, 4) : +val('f-year') || '';
+  const showMatch = editing.showId && D.showById[editing.showId] && D.showById[editing.showId].t === title ? editing.showId
+    : (D.shows.find(s => s.t.toLowerCase() === title.toLowerCase() && s.th === theatreId) || {}).id || '';
+  const data = {
+    title, showId: showMatch, city, cityName: cityNm, theatreId, theatreName: theatreId && D.theatres[theatreId] ? D.theatres[theatreId].n : theatreNm,
+    date, year, cat: val('f-cat'), kind: val('f-kind'), rating: +document.getElementById('f-rating').dataset.v || 0,
+    seat: val('f-seat'), notes: document.getElementById('f-notes').value.trim(), created: editing.created || new Date().toISOString(),
+  };
+  const id = editing.id || uid();
+  const btn = sheet.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'Saving…';
+  try { await put('visits', id, data); closeSheet(); }
+  catch (e) { btn.disabled = false; btn.textContent = 'Try again'; showErr(saveMsg(e)); }
+}
+async function saveShow() {
+  const val = id => document.getElementById(id).value.trim();
+  const title = val('s-title');
+  const open = +val('s-open'), close = val('s-close') ? +val('s-close') : 0;
+  if (!title) return showErr('Add the show title.');
+  if (!open) return showErr('Add the year it opened.');
+  if (close && close < open) return showErr('The closing year is before the opening year.');
+  const id = 'u-' + state.region[0] + '-' + slug(title) + '-' + open;
+  try { await put('shows', id, { title, theatreId: val('s-theatre'), open, close, kind: val('s-kind'), region: state.region }); closeSheet(); }
+  catch (e) { showErr(saveMsg(e)); }
+}
+function saveMsg(e) {
+  if (e && e.code === 'quota_exceeded') return 'Storage is full, so this could not be saved.';
+  if (e && e.code === 'invalid_argument') return 'You do not have permission to save to this diary.';
+  return 'That did not save. Check your connection and try again.';
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', async e => {
+  const tabBtn = e.target.closest('[data-tab]');
+  if (tabBtn) { state.tab = tabBtn.dataset.tab; try { history.replaceState(null, '', '#' + state.tab); } catch {} render(); window.scrollTo(0, 0); return; }
+  const a = e.target.closest('[data-act]');
+  if (!a) { if (e.target === overlay) closeSheet(); return; }
+  const act = a.dataset.act;
+  if (act === 'log') openVisit({});
+  else if (act === 'edit') { const v = state.visits.find(x => x.id === a.dataset.id); if (v) openVisit(v); }
+  else if (act === 'region') { state.region = a.dataset.v; render(); }
+  else if (act === 'filter') { state.filter = a.dataset.v; render(); }
+  else if (act === 'year') { state.year = +a.dataset.v; render(); }
+  else if (act === 'addshow') openAddShow();
+  else if (act === 'tick') {
+    const s = D.showById[a.dataset.show]; const vs = D.byShow[s.id] || [];
+    const inYear = vs.find(v => +v.year === state.year);
+    if (inYear || vs.length) openVisit(inYear || vs[0]);
+    else { const th = D.theatres[s.th]; openVisit({ title: s.t, showId: s.id, theatreId: s.th, city: th ? th.city : (s.region === 'broadway' ? 'nyc' : 'lon'), cat: s.region, kind: s.k, year: state.year }); }
+  }
+  else if (act === 'export') exportBackup();
+  else if (act === 'close') closeSheet();
+  else if (act === 'clear-rating') setRating(0);
+  else if (act === 'delete') {
+    if (!armedDelete) { armedDelete = true; a.textContent = 'Tap again to delete'; setTimeout(() => { if (a.isConnected) { armedDelete = false; a.textContent = 'Delete'; } }, 3000); return; }
+    try { await drop('visits', editing.id); closeSheet(); } catch (err) { showErr(saveMsg(err)); }
+  }
+});
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest('#f-rating'); if (!el) return;
+  const r = el.getBoundingClientRect();
+  setRating(Math.max(.5, Math.ceil((e.clientX - r.left) / r.width * 10) / 2));
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !overlay.hidden) return closeSheet();
+  if (e.target.id === 'f-rating') {
+    const cur = +e.target.dataset.v || 0;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { setRating(cur + .5); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { setRating(cur - .5); e.preventDefault(); }
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'dq') { state.dq = e.target.value; render(); }
+  if (e.target.id === 'sq') { state.q = e.target.value; render(); }
+});
+document.addEventListener('change', e => {
+  const id = e.target.id;
+  if (id === 'import-file' && e.target.files[0]) { importBackup(e.target.files[0]); return; }
+  if (id === 'f-city') { document.getElementById('f-theatre').innerHTML = theatreOptions(e.target.value, ''); syncCityFields(); }
+  if (id === 'f-theatre') { syncCityFields(); document.getElementById('f-cat').value = defaultCat(e.target.value, document.getElementById('f-city').value); }
+  if (id === 'f-date' && e.target.value) document.getElementById('f-year').value = e.target.value.slice(0, 4);
+  if (id === 'f-title') {
+    const s = D.shows.find(x => x.t.toLowerCase() === e.target.value.trim().toLowerCase());
+    if (s && !document.getElementById('f-theatre').value) {
+      const th = D.theatres[s.th];
+      if (th) { document.getElementById('f-city').value = th.city; document.getElementById('f-theatre').innerHTML = theatreOptions(th.city, s.th); syncCityFields(); }
+      document.getElementById('f-cat').value = s.region; document.getElementById('f-kind').value = s.k;
+    }
+  }
+});
+sheet.addEventListener('submit', e => { e.preventDefault(); sheetMode === 'show' ? saveShow() : saveVisit(); });
+
+const h = (location.hash || '').slice(1);
+if (['diary', 'shows', 'theatres'].includes(h)) state.tab = h;
+derive(); render();
+</script>
+
+</body></html>
