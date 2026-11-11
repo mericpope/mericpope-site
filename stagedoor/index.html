@@ -808,13 +808,67 @@ const LS_KEY = 'stagedoor:v1';
 
 async function put(col, id, data) {
   if (db) return db.collection(col).doc(id).set(data);
-  mem[col].set(id, data); lsSave(); fromMem(col);
+  queue({ op: 'put', col, id, data, ts: Date.now() });
 }
 async function drop(col, id) {
   if (db) return db.collection(col).doc(id).delete();
-  mem[col].delete(id); lsSave(); fromMem(col);
+  queue({ op: 'del', col, id, ts: Date.now() });
 }
-function fromMem(col) { state[col] = [...mem[col]].map(([id, d]) => ({ id, ...d })); derive(); render(); }
+function fromMem() { COLS.forEach(c => { state[c] = [...mem[c]].map(([id, d]) => ({ id, ...d })); }); derive(); render(); }
+
+/* Sync for the mericpope.com copy: changes queue on the device and go to the
+   stagedoor-api Worker, which keeps the newest version of each item. */
+const SYNC_URL = 'https://stagedoor-api.mericpope.workers.dev/sync';
+const PASS_LS = 'stagedoor:pass', PEND_LS = 'stagedoor:pending';
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+let pending = [];
+try { pending = JSON.parse(lsGet(PEND_LS) || '[]'); } catch { pending = []; }
+let syncing = false;
+state.sync = { status: lsGet(PASS_LS) ? 'syncing' : 'off', at: 0 };
+
+function applyOp(o) { if (o.op === 'del') mem[o.col].delete(o.id); else mem[o.col].set(o.id, o.data); }
+function queue(o) {
+  applyOp(o); lsSave();
+  if (lsGet(PASS_LS)) { pending.push(o); lsSet(PEND_LS, JSON.stringify(pending)); }
+  fromMem(); flush();
+}
+async function callSync(pass, ops) {
+  const r = await fetch(SYNC_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + pass, 'Content-Type': 'application/json' }, body: JSON.stringify({ ops }) });
+  if (r.status === 401) { const e = new Error('auth'); e.auth = true; throw e; }
+  if (!r.ok) throw new Error('http ' + r.status);
+  return r.json();
+}
+async function flush() {
+  const pass = lsGet(PASS_LS);
+  if (!pass || syncing || db) return;
+  syncing = true;
+  const ops = pending.slice(0, 400);
+  try {
+    const { items } = await callSync(pass, ops);
+    pending = pending.slice(ops.length); lsSet(PEND_LS, JSON.stringify(pending));
+    COLS.forEach(c => { mem[c] = new Map(Object.entries((items && items[c]) || {})); });
+    pending.forEach(applyOp);
+    lsSave();
+    state.sync = { status: 'ok', at: Date.now() };
+  } catch (e) {
+    state.sync = { status: e.auth ? 'auth' : 'error', at: state.sync.at };
+  } finally {
+    syncing = false; fromMem();
+    if (pending.length && state.sync.status === 'ok') flush();
+  }
+}
+async function connectSync(pass) {
+  await callSync(pass, []); // throws on a wrong passphrase or no connection
+  lsSet(PASS_LS, pass);
+  // Send what this device already has; ts 1 means anything already in the cloud wins.
+  COLS.forEach(c => mem[c].forEach((data, id) => pending.push({ op: 'put', col: c, id, data, ts: 1 })));
+  lsSet(PEND_LS, JSON.stringify(pending));
+  await flush();
+}
+function disconnectSync() { lsSet(PASS_LS, null); lsSet(PEND_LS, null); pending = []; state.sync = { status: 'off', at: 0 }; render(); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush(); });
+setInterval(() => { if (document.visibilityState === 'visible') flush(); }, 60000);
 
 // Outside claude.ai there is no db, so the diary lives in this browser's storage.
 function lsLoad() {
@@ -841,29 +895,32 @@ async function importBackup(file) {
   try {
     const d = JSON.parse(await file.text());
     if (!COLS.some(c => d[c] && typeof d[c] === 'object')) throw new Error('not a backup');
-    COLS.forEach(c => Object.entries(d[c] || {}).forEach(([id, v]) => mem[c].set(id, v)));
-    lsSave(); COLS.forEach(c => { state[c] = [...mem[c]].map(([id, x]) => ({ id, ...x })); });
+    const ts = Date.now();
+    COLS.forEach(c => Object.entries(d[c] || {}).forEach(([id, v]) => { const o = { op: 'put', col: c, id, data: v, ts }; applyOp(o); if (lsGet(PASS_LS)) pending.push(o); }));
+    lsSave(); lsSet(PEND_LS, JSON.stringify(pending));
     state.importMsg = `Imported ${Object.keys(d.visits || {}).length} shows from ${file.name}.`;
+    flush();
   } catch { state.importMsg = `${file.name} isn't a Stage Door backup, so nothing was imported.`; }
-  derive(); render();
+  fromMem();
 }
 
 (async () => {
+  await null; // let the rest of the script (derive, render, handlers) define itself first
   const timer = setTimeout(() => { if (!state.loaded) { state.slow = true; render(); } }, 10000);
   try { db = window.claude ? await window.claude.use('db') : null; } catch { db = null; }
   if (!db) {
     clearTimeout(timer); state.offline = true; state.local = lsLoad(); state.loaded = true;
-    COLS.forEach(c => { state[c] = [...mem[c]].map(([id, d]) => ({ id, ...d })); });
-    derive(); render(); return;
+    pending.forEach(applyOp);
+    fromMem(); flush(); return;
   }
-  let pending = 3;
+  let waiting = 3;
   ['visits', 'theatres', 'shows'].forEach(col => {
     let first = true;
     db.collection(col).onSnapshot(snap => {
       state[col] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (first && !snap.metadata.fromCache) { first = false; if (--pending === 0) { state.loaded = true; state.slow = false; clearTimeout(timer); } }
+      if (first && !snap.metadata.fromCache) { first = false; if (--waiting === 0) { state.loaded = true; state.slow = false; clearTimeout(timer); } }
       derive(); render();
-    }, () => { if (first) { first = false; if (--pending === 0) { state.loaded = true; clearTimeout(timer); } } render(); });
+    }, () => { if (first) { first = false; if (--waiting === 0) { state.loaded = true; clearTimeout(timer); } } render(); });
   });
 })();
 
@@ -899,9 +956,18 @@ function runLabel(s) { return s.c ? (s.c === s.o ? String(s.o) : `${s.o}–${s.c
 const view = document.getElementById('view');
 function render() {
   document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+  const backup = `<button class="btn ghost" data-act="export">Export backup</button><label class="btn ghost" for="import-file">Import</label><input type="file" id="import-file" accept="application/json,.json" hidden>`;
+  const s = state.sync;
+  const syncNote = {
+    off: `<span>Your diary is saved on this device only. Turn on sync to see it on your phone and laptop.</span><span class="row"><button class="btn primary" data-act="sync-on">Turn on sync</button>${backup}</span>`,
+    syncing: `<span>Syncing your diary…</span><span class="row">${backup}</span>`,
+    ok: `<span>Synced across your devices${s.at ? ' · updated ' + new Date(s.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}.</span><span class="row"><button class="btn ghost" data-act="sync-now">Sync now</button>${backup}<button class="btn ghost" data-act="sync-off">Turn off sync</button></span>`,
+    error: `<span>Can't reach the sync server right now. Your changes are saved on this device and will sync when it's back${pending.length ? ` (${pending.length} waiting)` : ''}.</span><span class="row"><button class="btn" data-act="sync-now">Try again</button></span>`,
+    auth: `<span>Your sync passphrase was changed or rejected, so this device has stopped syncing.</span><span class="row"><button class="btn primary" data-act="sync-on">Enter passphrase</button><button class="btn ghost" data-act="sync-off">Turn off sync</button></span>`,
+  }[s.status];
+  const showSync = state.tab === 'diary' || s.status === 'error' || s.status === 'auth';
   const banner = state.offline && state.local
-    ? (state.tab === 'diary' ? `<div class="note row" style="justify-content:space-between"><span>Your diary is saved in this browser. Export a backup now and then, and import it to move to another device.</span>
-        <span class="row"><button class="btn" data-act="export">Export backup</button><label class="btn" for="import-file">Import</label><input type="file" id="import-file" accept="application/json,.json" hidden></span></div>` : '')
+    ? (showSync ? `<div class="note row" style="justify-content:space-between">${syncNote}</div>` : '')
       + (state.importMsg ? `<p class="note">${esc(state.importMsg)}</p>` : '')
     : state.offline
     ? `<p class="note">This browser is blocking storage, so anything you log here disappears when you close the page.</p>`
@@ -1111,6 +1177,23 @@ function openAddShow() {
   overlay.hidden = false;
   document.getElementById('s-title').focus();
 }
+function openSync() {
+  sheetMode = 'sync'; editing = null;
+  sheet.innerHTML = `<h2>Turn on sync</h2>
+    <p style="margin:0;color:var(--muted)">Enter the passphrase you saved in Cloudflare. This device remembers it, so you only do this once per phone or computer. Shows already logged here get added to your synced diary.</p>
+    <label>Passphrase<input class="field" type="password" id="p-pass" autocomplete="current-password" required></label>
+    <p class="err" id="f-err" hidden></p>
+    <div class="sheet-actions"><span class="right"><button type="button" class="btn ghost" data-act="close">Cancel</button><button type="submit" class="btn primary">Connect</button></span></div>`;
+  overlay.hidden = false;
+  document.getElementById('p-pass').focus();
+}
+async function saveSync() {
+  const pass = document.getElementById('p-pass').value.trim();
+  if (!pass) return showErr('Enter your passphrase.');
+  const btn = sheet.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'Connecting…';
+  try { await connectSync(pass); closeSheet(); }
+  catch (e) { btn.disabled = false; btn.textContent = 'Connect'; showErr(e.auth ? "That passphrase doesn't match the one in Cloudflare." : "Couldn't reach the sync server. Check your connection and try again."); }
+}
 function closeSheet() { overlay.hidden = true; sheet.innerHTML = ''; editing = null; sheetMode = null; }
 function showErr(msg) { const e = document.getElementById('f-err'); e.textContent = msg; e.hidden = false; }
 
@@ -1191,6 +1274,9 @@ document.addEventListener('click', async e => {
     else { const th = D.theatres[s.th]; openVisit({ title: s.t, showId: s.id, theatreId: s.th, city: th ? th.city : (s.region === 'broadway' ? 'nyc' : 'lon'), cat: s.region, kind: s.k, year: state.year }); }
   }
   else if (act === 'export') exportBackup();
+  else if (act === 'sync-on') openSync();
+  else if (act === 'sync-now') flush();
+  else if (act === 'sync-off') disconnectSync();
   else if (act === 'close') closeSheet();
   else if (act === 'clear-rating') setRating(0);
   else if (act === 'delete') {
@@ -1230,7 +1316,7 @@ document.addEventListener('change', e => {
     }
   }
 });
-sheet.addEventListener('submit', e => { e.preventDefault(); sheetMode === 'show' ? saveShow() : saveVisit(); });
+sheet.addEventListener('submit', e => { e.preventDefault(); sheetMode === 'show' ? saveShow() : sheetMode === 'sync' ? saveSync() : saveVisit(); });
 
 const h = (location.hash || '').slice(1);
 if (['diary', 'shows', 'theatres'].includes(h)) state.tab = h;
