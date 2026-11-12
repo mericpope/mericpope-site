@@ -299,7 +299,7 @@ cambridge|Cambridge Theatre
 criterion|Criterion Theatre
 dominion|Dominion Theatre
 duchess|Duchess Theatre
-dukeofyorks|Duke of York's Theatre
+dukeofyorks|Tom Stoppard Theatre|formerly Duke of York's
 fortune|Fortune Theatre
 garrick|Garrick Theatre
 gielgud|Gielgud Theatre
@@ -410,7 +410,9 @@ const SHOWS = [];
 function addShows(region, text) {
   text.trim().split('\n').forEach(l => {
     const [t, th, o, c, k] = l.trim().split('|');
-    SHOWS.push({ id: region[0] + '-' + slug(t) + '-' + o, t, th, o: +o, c: c ? +c : 0, k: k || 'm', region });
+    let id = region[0] + '-' + slug(t) + '-' + o;
+    if (SHOWS.some(s => s.id === id)) id += '-' + th;
+    SHOWS.push({ id, t, th, o: +o, c: c ? +c : 0, k: k || 'm', region });
   });
 }
 addShows('broadway', `
@@ -419,256 +421,713 @@ Chicago|ambassador|1996||m
 The Lion King|minskoff|1997||m
 Mamma Mia!|wintergarden|2001|2015|m
 Wicked|gershwin|2003||m
-Jersey Boys|augustwilson|2005|2017|m
+Jersey Boys|augustwilson|2005|2016|m
 Mary Poppins|newamsterdam|2006|2013|m
+Billy Elliot: The Musical|imperial|2008|2012|m
 In the Heights|rodgers|2008|2011|m
-Billy Elliot|imperial|2008|2012|m
 South Pacific|beaumont|2008|2010|m
-Rock of Ages|hayes|2009|2015|m
-West Side Story|palace|2009|2011|m
-Next to Normal|booth|2009|2011|m
-Memphis|shubert|2009|2012|m
-Fela!|oneill|2009|2011|m
 A Little Night Music|kerr|2009|2011|m
-The Addams Family|luntfontanne|2010|2011|m
-Million Dollar Quartet|nederlander|2010|2011|m
+Burn the Floor|longacre|2009|2010|m
+Bye Bye Birdie|sondheimny|2009|2010|m
+Fela!|oneill|2009|2011|m
+Finian's Rainbow|stjames|2009|2010|m
+In the Next Room|lyceumny|2009|2010|p
+Irving Berlin's White Christmas|marquis|2009|2010|m
+Memphis|shubert|2009|2012|m
+Next to Normal|booth|2009|2011|m
+Race|barrymore|2009|2010|p
+Ragtime|neilsimon|2009|2010|m
+Rock of Ages|hayes|2009|2015|m
+Superior Donuts|musicbox|2009|2010|p
+West Side Story|palace|2009|2011|m
+A Behanding in Spokane|schoenfeld|2010|2010|p
+A Free Man of Color|beaumont|2010|2011|p
+A Life in the Theatre|schoenfeld|2010|2010|p
+A View from the Bridge|jej|2010|2010|p
+All About Me|sondheimny|2010|2010|m
 American Idiot|stjames|2010|2011|m
-Promises, Promises|broadwayth|2010|2011|m
-La Cage aux Folles|longacre|2010|2011|m
+Bloody Bloody Andrew Jackson|jacobs|2010|2011|m
+Brief Encounter|studio54|2010|2011|p
+Colin Quinn: Long Story Short|hayes|2010|2011|p
+Collected Stories|friedman|2010|2010|p
+Come Fly Away|marquis|2010|2010|s
+Donny & Marie - A Broadway Christmas|marquis|2010|2011|s
+Driving Miss Daisy|golden|2010|2011|p
+Elf|hirschfeld|2010|2011|m
+Elling|barrymore|2010|2010|p
+Enron|broadhurst|2010|2010|p
+Everyday Rapture|haimes|2010|2010|m
 Fences|jej|2010|2010|p
+God of Carnage|jacobs|2010|2010|p
+Hair|hirschfeld|2010|2010|m
+Harry Connick, Jr. in Concert on Broadway|neilsimon|2010|2010|s
+La Bête|musicbox|2010|2011|p
+La Cage aux Folles|longacre|2010|2011|m
+Lend Me a Tenor|musicbox|2010|2010|p
+Lombardi|circle|2010|2011|p
+Looped|lyceumny|2010|2010|p
+Mamma Mia!|broadhurst|2010|2015|m
+Million Dollar Quartet|nederlander|2010|2011|m
+Mrs. Warren's Profession|haimes|2010|2010|p
+Next Fall|hayes|2010|2010|p
+Present Laughter|haimes|2010|2010|p
+Promises, Promises|broadwayth|2010|2011|m
+Rain: A Tribute to the Beatles|neilsimon|2010|2011|s
 Red|golden|2010|2010|p
+Rock of Ages|lenahorne|2010|2014|m
+Shrek the Musical|broadwayth|2010|2010|m
+Sondheim on Sondheim|studio54|2010|2010|x
+The 39 Steps|haimes|2010|2010|p
+The Addams Family|luntfontanne|2010|2012|m
 The Merchant of Venice|broadhurst|2010|2011|p
-Spider-Man: Turn Off the Dark|lyricny|2011|2014|m
-The Book of Mormon|oneill|2011||m
-Catch Me If You Can|neilsimon|2011|2011|m
-Sister Act|broadwayth|2011|2012|m
-How to Succeed in Business Without Really Trying|hirschfeld|2011|2012|m
+The Miracle Worker|circle|2010|2010|p
+The Normal Heart|kerr|2010|2010|p
+The Pee-wee Herman Show|sondheimny|2010|2011|p
+The Pitmen Painters|friedman|2010|2010|p
+The Scottsboro Boys|lyceumny|2010|2010|m
+Time Stands Still|friedman|2010|2011|p
+Wishful Drinking|studio54|2010|2010|x
+Women on the Verge of a Nervous Breakdown|belasco|2010|2011|m
+8|oneill|2011|2011|p
+An Evening with Patti LuPone and Mandy Patinkin|barrymore|2011|2012|s
 Anything Goes|sondheimny|2011|2012|m
-Priscilla Queen of the Desert|palace|2011|2012|m
-War Horse|beaumont|2011|2013|p
-Jerusalem|musicbox|2011|2011|p
-The Normal Heart|golden|2011|2011|p
 Arcadia|barrymore|2011|2011|p
+Baby It's You!|broadhurst|2011|2011|m
+Bengal Tiger at the Baghdad Zoo|rodgers|2011|2011|p
+Bonnie & Clyde|schoenfeld|2011|2012|m
+Born Yesterday|jej|2011|2011|p
+Camelot|shubert|2011|2011|m
+Catch Me If You Can|neilsimon|2011|2011|m
+Chinglish|longacre|2011|2012|p
 Follies|marquis|2011|2012|m
+George is Dead|lenahorne|2011|2011|p
+Ghetto Klown|lyceumny|2011|2011|p
 Godspell|circle|2011|2012|m
-Porgy and Bess|rodgers|2012|2012|m
-Once|jacobs|2012|2015|m
-Newsies|nederlander|2012|2014|m
-Evita|marquis|2012|2013|m
-Jesus Christ Superstar|neilsimon|2012|2012|m
-Nice Work If You Can Get It|imperial|2012|2013|m
-Death of a Salesman|barrymore|2012|2012|p
-Peter and the Starcatcher|lenahorne|2012|2013|p
-Clybourne Park|kerr|2012|2012|p
-Annie|palace|2012|2014|m
-Who's Afraid of Virginia Woolf?|booth|2012|2013|p
+Good People|friedman|2011|2011|p
+Hair|stjames|2011|2011|m
+High|booth|2011|2011|p
+Honeymoon Motel|lenahorne|2011|2011|p
+How to Succeed in Business Without Really Trying|hirschfeld|2011|2012|m
+Hugh Jackman, Back on Broadway|broadhurst|2011|2012|s
+Jerusalem|musicbox|2011|2011|p
+Kathy Griffin Wants a Tony|belasco|2011|2011|s
+Lysistrata Jones|kerr|2011|2012|m
+Man and Boy|haimes|2011|2011|p
+Master Class|friedman|2011|2011|p
+On a Clear Day You Can See Forever|stjames|2011|2012|m
+Other Desert Cities|booth|2011|2012|p
+Priscilla Queen of the Desert|palace|2011|2012|m
+Private Lives|musicbox|2011|2012|p
+Relatively Speaking|lenahorne|2011|2012|p
+Seminar|golden|2011|2012|p
+Sister Act|broadwayth|2011|2012|m
+Spider-Man Turn Off the Dark|lyricny|2011|2013|m
+Spider-Man Turn Off the Dark|lyricny|2011|2011|m
+Stick Fly|jej|2011|2012|p
+Talking Cure|lenahorne|2011|2011|p
+That Championship Season|jacobs|2011|2011|p
+The Book of Mormon|oneill|2011||m
+The House of Blue Leaves|kerr|2011|2011|p
+The Importance of Being Earnest|haimes|2011|2011|p
+The Motherf**ker With the Hat|schoenfeld|2011|2011|p
+The Mountaintop|jacobs|2011|2012|p
+The Normal Heart|golden|2011|2011|p
+The People in the Picture|studio54|2011|2011|m
+Venus in Fur|friedman|2011|2012|p
+War Horse|beaumont|2011|2013|p
+Wonderland|marquis|2011|2011|m
+A Christmas Story, The Musical|luntfontanne|2012|2012|m
+A Streetcar Named Desire|broadhurst|2012|2012|p
+An Enemy of the People|friedman|2012|2012|p
+Annie|palace|2012|2013|m
+Bring It On: The Musical|stjames|2012|2012|m
 Cat on a Hot Tin Roof|rodgers|2012|2013|p
-Glengarry Glen Ross|schoenfeld|2012|2013|p
-Kinky Boots|hirschfeld|2013|2019|m
-Matilda the Musical|shubert|2013|2017|m
-Motown the Musical|luntfontanne|2013|2015|m
-Pippin|musicbox|2013|2015|m
-Rodgers + Hammerstein's Cinderella|broadwayth|2013|2015|m
-Vanya and Sonia and Masha and Spike|golden|2013|2013|p
-Lucky Guy|broadhurst|2013|2013|p
-Big Fish|neilsimon|2013|2013|m
-A Gentleman's Guide to Love and Murder|kerr|2013|2016|m
+Chaplin|barrymore|2012|2012|m
+Clybourne Park|kerr|2012|2012|p
+Cyrano de Bergerac|haimes|2012|2012|p
+Dead Accounts|musicbox|2012|2012|p
+Death of a Salesman|barrymore|2012|2012|p
+Don't Dress For Dinner|haimes|2012|2012|p
+Elf|hirschfeld|2012|2012|m
+End of the Rainbow|belasco|2012|2012|p
+Evita|marquis|2012|2013|m
+Fela!|hirschfeld|2012|2012|m
+Ghost The Musical|luntfontanne|2012|2012|m
+Glengarry Glen Ross|schoenfeld|2012|2012|p
+Golden Boy|belasco|2012|2012|m
+Grace|jej|2012|2012|p
+Harvey|studio54|2012|2012|p
+Jesus Christ Superstar|neilsimon|2012|2012|m
+Leap of Faith|stjames|2012|2012|m
+Lewis Black: Running On Empty|rodgers|2012|2012|p
+Magic/Bird|longacre|2012|2012|p
+Mike Tyson: Undisputed Truth|longacre|2012|2012|p
+Newsies|nederlander|2012|2014|m
+Nice Work If You Can Get It|imperial|2012|2013|m
+Once|jacobs|2012|2014|m
+One Man, Two Guvnors|musicbox|2012|2012|p
+Peter and the Starcatcher|lenahorne|2012|2012|p
+Porgy and Bess|rodgers|2012|2012|m
+Scandalous: The Life and Trials of Aimee Semple McPherson|neilsimon|2012|2012|m
+Shatner's World: We Just Live in It|musicbox|2012|2012|p
+The Anarchist|golden|2012|2012|p
+The Best Man|schoenfeld|2012|2012|p
+The Columnist|friedman|2012|2012|p
+The Heiress|kerr|2012|2013|p
+The Lyons|jej|2012|2012|p
+The Mystery of Edwin Drood|studio54|2012|2013|m
+The Performers|longacre|2012|2012|p
+The Road to Mecca|haimes|2012|2012|p
+Who's Afraid of Virginia Woolf?|booth|2012|2013|p
+Wit|friedman|2012|2012|p
+700 Sundays|imperial|2013|2013|p
+A Gentleman's Guide to Love and Murder|kerr|2013|2015|m
+A Night With Janis Joplin|lyceumny|2013|2014|m
+A Time to Kill|golden|2013|2013|p
 After Midnight|lenahorne|2013|2014|m
+Ann|beaumont|2013|2013|p
+Betrayal|barrymore|2013|2013|p
+Big Fish|neilsimon|2013|2013|m
+Breakfast at Tiffany's|jej|2013|2013|m
+Cinderella|broadwayth|2013|2014|m
+First Date|longacre|2013|2013|m
+Forever Tango|kerr|2013|2013|s
+Hands on a Hardbody|lenahorne|2013|2013|m
+I'll Eat You Last: A Chat With Sue Mengers|booth|2013|2013|p
+Il Divo – A Musical Affair: The Greatest Songs of Broadway|marquis|2013|2013|s
+Jekyll & Hyde|marquis|2013|2013|m
+Kinky Boots|hirschfeld|2013|2019|m
+Let It Be|stjames|2013|2013|s
+Lucky Guy|broadhurst|2013|2013|p
+Macbeth|barrymore|2013|2013|p
+Macbeth|beaumont|2013|2013|p
+Manilow on Broadway|stjames|2013|2013|s
+Matilda The Musical|shubert|2013|2016|m
+Motown The Musical|luntfontanne|2013|2014|m
+No Man's Land|jej|2013|2014|p
+No Man's Land / Waiting for Godot|jej|2013|2013|s
+Orphans|schoenfeld|2013|2013|p
+Picnic|haimes|2013|2013|p
+Pippin|musicbox|2013|2014|m
+Richard III|belasco|2013|2013|p
+Rodgers + Hammerstein's Cinderella|broadwayth|2013|2015|m
+Romeo and Juliet|rodgers|2013|2013|p
+Soul Doctor|circle|2013|2013|m
+The Assembled Parties|friedman|2013|2013|p
+The Big Knife|haimes|2013|2013|p
+The Glass Menagerie|booth|2013|2014|p
+The Nance|lyceumny|2013|2013|p
+The Other Place|friedman|2013|2013|p
+The Rascals: Once Upon a Dream|rodgers|2013|2013|s
+The Snow Geese|friedman|2013|2013|p
+The Testament of Mary|kerr|2013|2013|p
+The Trip to Bountiful|sondheimny|2013|2013|p
+The Winslow Boy|haimes|2013|2013|p
+Twelfth Night|belasco|2013|2014|p
+Twelfth Night / Richard III|belasco|2013|2013|p
+Vanya and Sonia and Masha and Spike|golden|2013|2013|p
+Waiting for Godot|jej|2013|2013|p
 Waiting for Godot / No Man's Land|jej|2013|2014|p
-Twelfth Night / Richard III|belasco|2013|2014|p
-Les Misérables|imperial|2014|2016|m
-Aladdin|newamsterdam|2014||m
-Beautiful: The Carole King Musical|sondheimny|2014|2019|m
-Rocky|wintergarden|2014|2014|m
-Bullets Over Broadway|stjames|2014|2014|m
-Hedwig and the Angry Inch|belasco|2014|2015|m
-If/Then|rodgers|2014|2015|m
-Cabaret|studio54|2014|2015|m
-Violet|haimes|2014|2014|m
-Of Mice and Men|longacre|2014|2014|p
+A Delicate Balance|golden|2014|2015|p
 A Raisin in the Sun|barrymore|2014|2014|p
-All the Way|neilsimon|2014|2014|p
-The Curious Incident of the Dog in the Night-Time|barrymore|2014|2016|p
-On the Town|lyricny|2014|2015|m
-It's Only a Play|jacobs|2014|2015|p
-The Last Ship|neilsimon|2014|2015|m
+Act One|beaumont|2014|2014|p
+Aladdin|newamsterdam|2014||m
+All The Way|neilsimon|2014|2014|p
+Beautiful: The Carole King Musical|sondheimny|2014|2019|m
+Bronx Bombers|circle|2014|2014|p
+Bullets Over Broadway|stjames|2014|2014|m
+Cabaret|studio54|2014|2015|m
+Casa Valentina|friedman|2014|2014|p
 Disgraced|lyceumny|2014|2015|p
-Finding Neverland|luntfontanne|2015|2016|m
-An American in Paris|palace|2015|2016|m
-Fun Home|circle|2015|2016|m
-Something Rotten!|stjames|2015|2017|m
-The King and I|beaumont|2015|2016|m
-The Audience|schoenfeld|2015|2015|p
-Wolf Hall Parts One & Two|wintergarden|2015|2015|p
-Hand to God|booth|2015|2016|p
-The Visit|lyceumny|2015|2015|m
-Hamilton|rodgers|2015||m
-Spring Awakening|lenahorne|2015|2016|m
-School of Rock|wintergarden|2015|2019|m
-On Your Feet!|marquis|2015|2017|m
+Everybody, Rise! A Celebration of Elaine Stritch|hirschfeld|2014|2014|s
+Hedwig and the Angry Inch|belasco|2014|2015|m
+Holler If Ya Hear Me|palace|2014|2014|m
+If/Then|rodgers|2014|2015|m
+It's Only a Play|schoenfeld|2014|2015|p
+It's Only a Play|jacobs|2014|2015|p
+Lady Day at Emerson's Bar and Grill|circle|2014|2014|p
+Les Misérables|imperial|2014|2016|m
+Love Letters|lenahorne|2014|2014|p
+Machinal|haimes|2014|2014|p
+Mothers and Sons|golden|2014|2014|p
+Of Mice and Men|longacre|2014|2014|p
+On the Town|lyricny|2014|2015|m
+Outside Mullingar|friedman|2014|2014|p
+Rocky|wintergarden|2014|2014|m
+Side Show|stjames|2014|2014|m
+The Bridges of Madison County|schoenfeld|2014|2014|m
+The Country House|friedman|2014|2014|p
+The Cripple of Inishmaan|jej|2014|2014|p
+The Curious Incident of the Dog in the Night-Time|barrymore|2014|2016|p
+The Elephant Man|booth|2014|2015|p
+The Illusionists - Witness the Impossible|marquis|2014|2014|s
+The Last Ship|neilsimon|2014|2015|m
+The Real Thing|haimes|2014|2014|p
+The Realistic Joneses|lyceumny|2014|2014|p
+The River|circle|2014|2015|p
+The Temptations & The Four Tops On Broadway|palace|2014|2014|s
+The Velocity of Autumn|booth|2014|2014|p
+This Is Our Youth|jej|2014|2014|p
+Violet|haimes|2014|2014|m
+You Can't Take It With You|longacre|2014|2015|p
+A View from the Bridge|lyceumny|2015|2016|p
+Airline Highway|friedman|2015|2015|p
 Allegiance|longacre|2015|2016|m
+Amazing Grace|nederlander|2015|2015|m
+An Act of God|studio54|2015|2015|p
+An American in Paris|palace|2015|2016|m
+China Doll|schoenfeld|2015|2016|p
+Constellations|friedman|2015|2015|p
+Dames at Sea|hayes|2015|2015|m
+Doctor Zhivago|broadwayth|2015|2015|m
 Fiddler on the Roof|broadwayth|2015|2016|m
-The Color Purple|jacobs|2015|2017|m
-Waitress|lenahorne|2016|2020|m
-Shuffle Along|musicbox|2016|2016|m
-She Loves Me|studio54|2016|2016|m
-Tuck Everlasting|broadhurst|2016|2016|m
-Bright Star|jej|2016|2016|m
+Finding Neverland|luntfontanne|2015|2016|m
+Fish in the Dark|jej|2015|2015|p
+Fool For Love|friedman|2015|2015|p
+Fun Home|circle|2015|2016|m
+Gigi|neilsimon|2015|2015|m
+Hamilton|rodgers|2015||m
+Hand to God|booth|2015|2015|p
+Honeymoon in Vegas|nederlander|2015|2015|m
+It Shoulda Been You|lenahorne|2015|2015|m
+King Charles III|musicbox|2015|2016|p
+Living on Love|longacre|2015|2015|p
+Lord of the Dance: Dangerous Games|lyricny|2015|2015|s
+Misery|broadhurst|2015|2016|p
+Old Times|haimes|2015|2015|p
+On the Twentieth Century|haimes|2015|2015|m
+On Your Feet!|marquis|2015|2017|m
+Penn & Teller On Broadway|marquis|2015|2015|s
+School of Rock – The Musical|wintergarden|2015|2019|m
+Skylight|golden|2015|2015|p
+Something Rotten!|stjames|2015|2016|m
+Spring Awakening|lenahorne|2015|2016|m
+Sylvia|jej|2015|2015|p
+The Audience|schoenfeld|2015|2015|p
+The Color Purple|jacobs|2015|2016|m
+The Gin Game|golden|2015|2015|p
+The Heidi Chronicles|musicbox|2015|2015|p
+The Illusionists - Live On Broadway|neilsimon|2015|2015|s
+The King and I|beaumont|2015|2016|m
+The Visit|lyceumny|2015|2015|m
+Thérèse Raquin|studio54|2015|2015|p
+Wolf Hall Parts One & Two|wintergarden|2015|2015|p
+Wolf Hall: Parts 1 & 2|wintergarden|2015|2015|x
+A Bronx Tale The Musical|longacre|2016|2018|p
+Alton Brown Live: Eat Your Science|barrymore|2016|2016|s
 American Psycho|schoenfeld|2016|2016|m
-The Humans|schoenfeld|2016|2017|p
-The Crucible|kerr|2016|2016|p
-Dear Evan Hansen|musicbox|2016|2022|m
-Natasha, Pierre & The Great Comet of 1812|imperial|2016|2017|m
-Holiday Inn|studio54|2016|2017|m
-Falsettos|kerr|2016|2017|m
+An Act of God|booth|2016|2016|p
+Blackbird|belasco|2016|2016|p
+Bright Star|jej|2016|2016|m
 Cats|neilsimon|2016|2017|m
-A Bronx Tale|longacre|2016|2018|m
-Come From Away|schoenfeld|2017|2022|m
-Anastasia|broadhurst|2017|2019|m
-Hello, Dolly!|shubert|2017|2018|m
-Groundhog Day|augustwilson|2017|2017|m
-Bandstand|jacobs|2017|2017|m
-War Paint|nederlander|2017|2017|m
-Sunset Boulevard|palace|2017|2017|m
-Miss Saigon|broadwayth|2017|2018|m
-Oslo|beaumont|2017|2017|p
+Cirque du Soleil Paramour|lyricny|2016|2017|m
+Dear Evan Hansen|musicbox|2016|2022|m
+Disaster!|nederlander|2016|2016|m
+Eclipsed|golden|2016|2016|p
+Falsettos|kerr|2016|2016|m
+Frankie Valli and the Four Seasons On Broadway|luntfontanne|2016|2016|s
+Fully Committed|lyceumny|2016|2016|p
+Heisenberg|friedman|2016|2016|p
+Holiday Inn|studio54|2016|2017|m
+Holiday Inn, The New Irving Berlin Musical|studio54|2016|2016|m
+Hughie|booth|2016|2016|p
+In Transit|circle|2016|2017|m
+Kristin Chenoweth: My Love Letter to Broadway|luntfontanne|2016|2016|s
+Les Liaisons Dangereuses|booth|2016|2016|p
+Lewis Black: Black to the Future|marquis|2016|2016|p
+Long Day's Journey Into Night|haimes|2016|2016|p
+Motown The Musical|nederlander|2016|2016|m
+Natasha, Pierre & The Great Comet of 1812|imperial|2016|2017|m
+Noises Off|haimes|2016|2016|p
+Oh, Hello on Broadway|lyceumny|2016|2017|p
+Our Mother's Brief Affair|friedman|2016|2016|p
+She Loves Me|studio54|2016|2016|m
+Shuffle Along|musicbox|2016|2016|m
+Shuffle Along, or the Making of the Musical Sensation of 1921 and All That Followed|musicbox|2016|2016|m
+The Cherry Orchard|haimes|2016|2016|p
+The Crucible|kerr|2016|2016|p
+The Encounter|golden|2016|2016|s
+The Father|friedman|2016|2016|p
+The Front Page|broadhurst|2016|2017|p
+The Humans|hayes|2016|2016|p
+The Humans|schoenfeld|2016|2016|p
+The Illusionists — Turn of the Century|palace|2016|2016|s
+Tuck Everlasting|broadhurst|2016|2016|m
+Waitress|lenahorne|2016|2019|m
+1984|hudson|2017|2017|p
 A Doll's House, Part 2|golden|2017|2017|p
+Amélie, A New Musical|kerr|2017|2017|m
+Anastasia|broadhurst|2017|2019|m
+Bandstand|jacobs|2017|2017|m
+Charlie and the Chocolate Factory|luntfontanne|2017|2017|m
+Come From Away|schoenfeld|2017|2022|m
+Farinelli and the King|belasco|2017|2018|p
+Groundhog Day|augustwilson|2017|2017|m
+Hello, Dolly!|shubert|2017|2018|m
+Home for the Holidays|augustwilson|2017|2017|s
 Indecent|jej|2017|2017|p
-Sweat|studio54|2017|2017|p
-Sunday in the Park with George|hudson|2017|2017|m
+Jitney|friedman|2017|2017|p
+Junk|beaumont|2017|2017|p
+Latin History for Morons|studio54|2017|2018|p
+M. Butterfly|jej|2017|2017|p
+Marvin's Room|haimes|2017|2017|p
+Meteor Shower|booth|2017|2018|p
+Michael Moore: The Terms of My Surrender|belasco|2017|2017|p
+Miss Saigon|broadwayth|2017|2017|m
+Once On This Island|circle|2017|2018|m
+Oslo|beaumont|2017|2017|p
+Present Laughter|stjames|2017|2017|p
+Prince of Broadway|friedman|2017|2017|m
+Significant Other|booth|2017|2017|p
+Six Degrees of Separation|barrymore|2017|2017|p
 SpongeBob SquarePants|palace|2017|2018|m
+SpongeBob SquarePants, The Broadway Musical|palace|2017|2018|m
+Springsteen On Broadway|kerr|2017|2018|s
+Sunday in the Park with George|hudson|2017|2017|m
+Sunset Boulevard|palace|2017|2017|m
+Sweat|studio54|2017|2017|p
 The Band's Visit|barrymore|2017|2019|m
-Once on This Island|circle|2017|2019|m
-Frozen|stjames|2018|2020|m
-Mean Girls|augustwilson|2018|2020|m
-Carousel|imperial|2018|2018|m
-My Fair Lady|beaumont|2018|2019|m
-Harry Potter and the Cursed Child|lyricny|2018||p
+The Children|friedman|2017|2018|p
+The Glass Menagerie|belasco|2017|2017|p
+The Little Foxes|friedman|2017|2017|p
+The Parisian Woman|hudson|2017|2018|p
+The Play That Goes Wrong|lyceumny|2017|2018|p
+The Present|barrymore|2017|2017|p
+The Price|haimes|2017|2017|p
+Time and the Conways|haimes|2017|2017|p
+War Paint|nederlander|2017|2017|m
+American Son|booth|2018|2019|p
 Angels in America|neilsimon|2018|2018|p
-Three Tall Women|golden|2018|2018|p
-The Iceman Cometh|jacobs|2018|2018|p
+Angels in America: A Gay Fantasia on National Themes|neilsimon|2018|2018|p
+Angels in America: Millennium Approaches|neilsimon|2018|2018|p
+Angels in America: Perestroika|neilsimon|2018|2018|p
+Bernhardt/Hamlet|haimes|2018|2018|p
+Carousel|imperial|2018|2018|m
+Celebrity Autobiography|marquis|2018|2018|s
+Children of a Lesser God|studio54|2018|2018|p
 Escape to Margaritaville|marquis|2018|2018|m
-Summer: The Donna Summer Musical|luntfontanne|2018|2018|m
-Head Over Heels|hudson|2018|2019|m
-Pretty Woman|nederlander|2018|2019|m
-The Prom|longacre|2018|2019|m
+Frozen|stjames|2018|2020|m
+Gettin' the Band Back Together|belasco|2018|2018|m
+Harry Potter and the Cursed Child|lyricny|2018||p
+Head Over Heels|hudson|2018|2018|m
+John Lithgow: Stories By Heart|haimes|2018|2018|p
 King Kong|broadwayth|2018|2019|m
-The Ferryman|jacobs|2018|2019|p
-To Kill a Mockingbird|shubert|2018|2025|p
+Lobby Hero|hayes|2018|2018|p
+Mean Girls|augustwilson|2018|2020|m
+Mike Birbiglia's The New One|jej|2018|2019|p
+My Fair Lady|beaumont|2018|2019|m
 Network|belasco|2018|2019|p
+Pretty Woman: The Musical|nederlander|2018|2019|m
+Rocktopia|broadwayth|2018|2018|s
+Ruben & Clay's First Annual Christmas Carol Family Fun Pageant Spectacular Reunion Show|imperial|2018|2018|s
+Saint Joan|friedman|2018|2018|p
+Straight White Men|hayes|2018|2018|p
+Summer: The Donna Summer Musical|luntfontanne|2018|2018|m
+The Boys in the Band|booth|2018|2018|p
 The Cher Show|neilsimon|2018|2019|m
-Choir Boy|friedman|2019|2019|p
-Kiss Me, Kate|studio54|2019|2019|m
+The Ferryman|jacobs|2018|2019|p
+The Iceman Cometh|jacobs|2018|2018|p
+The Illusionists – Magic Of The Holidays|marquis|2018|2018|s
+The Lifespan of a Fact|studio54|2018|2018|p
+The Nap|friedman|2018|2018|p
+The Prom|longacre|2018|2019|m
+The Waverly Gallery|golden|2018|2019|p
+Three Tall Women|golden|2018|2018|p
+To Kill A Mockingbird|shubert|2018|2022|p
+Torch Song|hayes|2018|2018|p
+Travesties|haimes|2018|2018|p
+A Christmas Carol|lyceumny|2019|2019|p
 Ain't Too Proud|imperial|2019|2022|m
+Ain't Too Proud—The Life and Times of the Temptations|imperial|2019|2022|m
+All My Sons|haimes|2019|2019|p
+Be More Chill|lyceumny|2019|2019|m
+Beetlejuice|wintergarden|2019|2020|m
+Betrayal|jacobs|2019|2019|p
+Burn This|hudson|2019|2019|p
+Choir Boy|friedman|2019|2019|p
+Criss Angel Raw — The Mindfreak Unplugged|luntfontanne|2019|2019|s
+Dave Chappelle Live on Broadway|luntfontanne|2019|2019|p
+David Byrne's American Utopia|hudson|2019|2020|m
+Derren Brown: Secret|jej|2019|2019|s
+Dream Big: Rudy Ruettiger Live on Broadway|friedman|2019|2019|p
+Frankie and Johnny in the Clair de Lune|broadhurst|2019|2019|s
+Freestyle Love Supreme|booth|2019|2019|s
+Gary: A Sequel to Titus Andronicus|booth|2019|2019|p
 Hadestown|kerr|2019||m
-Tootsie|marquis|2019|2020|m
-Beetlejuice|wintergarden|2019|2023|m
-Oklahoma!|circle|2019|2020|m
-What the Constitution Means to Me|hayes|2019|2019|p
-Moulin Rouge! The Musical|hirschfeld|2019||m
-David Byrne's American Utopia|hudson|2019|2022|m
+Harry Connick, Jr.—A Celebration of Cole Porter|nederlander|2019|2019|s
+Hillary and Clinton|golden|2019|2019|p
+Ian McKellen On Stage: With Tolkien, Shakespeare, Others ...And You!|hudson|2019|2019|p
+Ink|friedman|2019|2019|p
 Jagged Little Pill|broadhurst|2019|2021|m
-Tina: The Tina Turner Musical|luntfontanne|2019|2022|m
-The Inheritance|barrymore|2019|2020|p
+King Lear|jej|2019|2019|p
+Kiss Me, Kate|studio54|2019|2019|m
+Kristin Chenoweth: For The Girls|nederlander|2019|2019|s
+Linda Vista|hayes|2019|2019|p
+Manilow Broadway|luntfontanne|2019|2019|s
+Mel Brooks on Broadway|luntfontanne|2019|2019|s
+Morrissey|luntfontanne|2019|2019|s
+Moulin Rouge! The Musical|hirschfeld|2019|2026|m
+Oklahoma!|circle|2019|2020|m
+Pure Yanni|luntfontanne|2019|2019|s
+Regina Spektor: Live on Broadway|luntfontanne|2019|2019|s
+Sea Wall/A Life|hudson|2019|2019|p
+Slava's Snowshow|sondheimny|2019|2019|s
 Slave Play|golden|2019|2020|p
-A Christmas Carol|lyceumny|2019|2021|p
+The Great Society|beaumont|2019|2019|p
+The Height of the Storm|friedman|2019|2019|p
+The Illusionists – Magic Of The Holidays|neilsimon|2019|2019|s
+The Importance of Being Earnest|haimes|2019|2019|p
+The Inheritance|barrymore|2019|2020|p
+The Lightning Thief: The Percy Jackson Musical|longacre|2019|2019|m
+The Rose Tattoo|haimes|2019|2019|p
+The Sound Inside|studio54|2019|2019|p
+Tina: The Tina Turner Musical|luntfontanne|2019|2022|m
+Tootsie|marquis|2019|2019|m
+True West|haimes|2019|2019|p
+What the Constitution Means to Me|hayes|2019|2019|p
+A Soldier's Play|haimes|2020|2020|p
+Girl From the North Country|belasco|2020|2022|m
+Grand Horizons|hayes|2020|2020|p
+Hangmen|golden|2020|2020|p
+My Name is Lucy Barton|friedman|2020|2020|p
 West Side Story|broadwayth|2020|2020|m
-Girl from the North Country|belasco|2020|2022|m
-Six|lenahorne|2021||m
-Company|jacobs|2021|2022|m
-The Lehman Trilogy|nederlander|2021|2022|p
-Caroline, or Change|studio54|2021|2022|m
-Diana|longacre|2021|2021|m
-Mrs. Doubtfire|sondheimny|2021|2022|m
+Who's Afraid of Virginia Woolf?|booth|2020|2020|p
+Caroline, or Change|studio54|2021|2021|m
+Chicken & Biscuits|circle|2021|2021|p
 Clyde's|hayes|2021|2022|p
-Trouble in Mind|haimes|2021|2022|p
-MJ the Musical|neilsimon|2022||m
-The Music Man|wintergarden|2022|2023|m
-Funny Girl|augustwilson|2022|2023|m
-Paradise Square|barrymore|2022|2022|m
-Mr. Saturday Night|nederlander|2022|2022|m
-A Strange Loop|lyceumny|2022|2023|m
-Take Me Out|hayes|2022|2022|p
-POTUS|shubert|2022|2022|p
-Plaza Suite|hudson|2022|2022|p
-Hangmen|golden|2022|2022|p
+Company|jacobs|2021|2022|m
+Dana H.|lyceumny|2021|2021|p
+David Byrne's American Utopia|stjames|2021|2022|m
+Diana|longacre|2021|2021|m
+Flying Over Sunset|beaumont|2021|2022|m
+Freestyle Love Supreme|booth|2021|2021|s
+Is This A Room|lyceumny|2021|2021|p
+Lackawanna Blues|friedman|2021|2021|p
+Mrs. Doubtfire|sondheimny|2021|2022|m
+Pass Over|augustwilson|2021|2021|p
+SIX: The Musical|lenahorne|2021||m
+SIX: The Musical|lenahorne|2021|2020|m
+Slave Play|augustwilson|2021|2022|p
+Springsteen On Broadway|stjames|2021|2021|s
+The Lehman Trilogy|nederlander|2021|2021|p
+Thoughts of a Colored Man|golden|2021|2021|p
+Trouble in Mind|haimes|2021|2021|p
+Waitress|barrymore|2021|2021|m
 & Juliet|sondheimny|2022||m
-Some Like It Hot|shubert|2022|2023|m
-Kimberly Akimbo|booth|2022|2024|m
-Into the Woods|stjames|2022|2023|m
-1776|haimes|2022|2023|m
-Almost Famous|jacobs|2022|2023|m
+1776|haimes|2022|2022|m
 A Beautiful Noise|broadhurst|2022|2024|m
-Leopoldstadt|longacre|2022|2023|p
-The Piano Lesson|barrymore|2022|2023|p
+A Beautiful Noise, The Neil Diamond Musical|broadhurst|2022|2024|m
+A Christmas Carol|nederlander|2022|2022|p
+A Strange Loop|lyceumny|2022|2023|m
+Ain't No Mo'|belasco|2022|2022|p
+Almost Famous|broadwayth|2022|2022|m
+Almost Famous|jacobs|2022|2022|m
+American Buffalo|circle|2022|2022|p
+Beetlejuice|marquis|2022|2022|m
+Between Riverside and Crazy|hayes|2022|2023|p
+Birthday Candles|haimes|2022|2022|p
+Chess|broadhurst|2022|2022|m
+Cost of Living|friedman|2022|2022|p
 Death of a Salesman|hudson|2022|2023|p
+for colored girls who have considered suicide/when the rainbow is enuf|booth|2022|2022|p
+Funny Girl|augustwilson|2022|2023|m
+Hangmen|golden|2022|2022|p
+How I Learned to Drive|friedman|2022|2022|p
+Into the Woods|stjames|2022|2022|m
+Kimberly Akimbo|broadwayth|2022|2022|m
+Kimberly Akimbo|booth|2022|2024|m
+KPOP|circle|2022|2022|m
+Leopoldstadt|longacre|2022|2023|p
+Macbeth|longacre|2022|2022|p
+Mike Birbiglia: The Old Man & the Pool|beaumont|2022|2023|p
+MJ The Musical|neilsimon|2022||m
+Mr. Saturday Night|nederlander|2022|2022|m
+Ohio State Murders|jej|2022|2023|p
+Paradise Square|barrymore|2022|2022|m
+Plaza Suite|hudson|2022|2022|p
+POTUS|shubert|2022|2022|p
+POTUS: Or, Behind Every Great Dumbass Are Seven Women Trying to Keep Him Alive|shubert|2022|2022|p
+Skeleton Crew|friedman|2022|2022|p
+Some Like It Hot|shubert|2022|2023|m
+Take Me Out|hayes|2022|2022|p
+Take Me Out|schoenfeld|2022|2023|p
+The Collaboration|friedman|2022|2023|p
+The Kite Runner|hayes|2022|2022|p
+The Little Prince|broadwayth|2022|2022|s
+The Minutes|studio54|2022|2022|p
+The Music Man|wintergarden|2022|2023|m
+The Piano Lesson|barrymore|2022|2023|p
+The Pirates of Penzance|haimes|2022|2022|m
+The Skin of Our Teeth|beaumont|2022|2022|p
 Topdog/Underdog|golden|2022|2023|p
-Sweeney Todd|luntfontanne|2023|2023|m
-Parade|jacobs|2023|2023|m
-Shucked|nederlander|2023|2024|m
-New York, New York|stjames|2023|2023|m
-Camelot|beaumont|2023|2023|m
-Bad Cinderella|imperial|2023|2023|m
-Life of Pi|schoenfeld|2023|2023|p
-Good Night, Oscar|belasco|2023|2023|p
-Prima Facie|golden|2023|2023|p
-Fat Ham|haimes|2023|2023|p
-Back to the Future|wintergarden|2023|2025|m
-Here Lies Love|broadwayth|2023|2023|m
-Merrily We Roll Along|hudson|2023|2024|m
-Purlie Victorious|musicbox|2023|2024|p
-Harmony|barrymore|2023|2024|m
-Gutenberg! The Musical!|jej|2023|2024|m
-How to Dance in Ohio|belasco|2023|2024|m
-Spamalot|stjames|2023|2024|m
+Walking with Ghosts|musicbox|2022|2022|p
+A Doll's House|hudson|2023|2023|p
+Appropriate|hayes|2023|2023|p
 Appropriate|belasco|2023|2024|p
-Days of Wine and Roses|studio54|2024|2024|m
-The Notebook|schoenfeld|2024|2024|m
-Water for Elephants|imperial|2024|2024|m
-Hell's Kitchen|shubert|2024||m
-The Outsiders|jacobs|2024||m
-Suffs|musicbox|2024|2025|m
-Lempicka|longacre|2024|2024|m
-The Great Gatsby|broadwayth|2024||m
-Cabaret at the Kit Kat Club|augustwilson|2024||m
-Illinoise|stjames|2024|2024|m
-The Who's Tommy|nederlander|2024|2024|m
-Stereophonic|golden|2024|2025|p
-Mother Play|hayes|2024|2024|p
-Patriots|barrymore|2024|2024|p
+Back To The Future|wintergarden|2023|2024|m
+Bad Cinderella|imperial|2023|2023|m
+Camelot|beaumont|2023|2023|m
+Dancin'|musicbox|2023|2023|m
+El Mago Pop|barrymore|2023|2023|s
+Fallen Angels|haimes|2023|2023|p
+Fat Ham|haimes|2023|2023|p
+Good Night, Oscar|belasco|2023|2023|p
+Grey House|lyceumny|2023|2023|p
+Gutenberg! The Musical!|jej|2023|2024|m
+Harmony|barrymore|2023|2024|m
+Here Lies Love|broadwayth|2023|2023|m
+How to Dance in Ohio|belasco|2023|2024|m
+I Need That|haimes|2023|2023|p
+Jaja’s African Hair Braiding|friedman|2023|2023|p
+Jonas Brothers|marquis|2023|2023|s
+Just For Us|hudson|2023|2023|p
+Life of Pi|schoenfeld|2023|2023|p
+Melissa Etheridge: My Window|circle|2023|2023|m
+Merrily We Roll Along|broadwayth|2023|2023|m
+Merrily We Roll Along|hudson|2023|2024|m
+New York, New York|stjames|2023|2023|m
+Once Upon A One More Time|marquis|2023|2023|m
+Parade|jacobs|2023|2023|m
+Peter Pan Goes Wrong|barrymore|2023|2023|p
+Pictures From Home|studio54|2023|2023|p
+Prima Facie|golden|2023|2023|p
+Purlie Victorious|musicbox|2023|2024|p
+Ragtime|minskoff|2023|2023|m
+Shucked|nederlander|2023|2024|m
+Spamalot|stjames|2023|2024|m
+Summer, 1976|friedman|2023|2023|p
+Sweeney Todd|luntfontanne|2023|2024|m
+The Cottage|hayes|2023|2023|p
+The Shark is Broken|golden|2023|2023|p
+The Sign in Sidney Brustein's Window|jej|2023|2023|p
+The Thanksgiving Play|hayes|2023|2023|p
+A Wonderful World: The Louis Armstrong Musical|studio54|2024|2025|m
+Alan Cumming Is Not Acting His Age|studio54|2024|2024|s
+All In: Comedy About Love|hudson|2024|2025|p
 An Enemy of the People|circle|2024|2024|p
+Ben Platt: Live at the Palace|palace|2024|2024|s
+Cabaret|augustwilson|2024|2025|m
+Cabaret at the Kit Kat Club|augustwilson|2024||m
+Cult of Love|hayes|2024|2025|p
+Days Of Wine And Roses|studio54|2024|2024|m
+Death Becomes Her|luntfontanne|2024|2026|m
+Doubt|haimes|2024|2024|p
+Elf|marquis|2024|2024|m
+Eureka Day|friedman|2024|2025|p
+Gypsy|majestic|2024|2025|m
+Hell's Kitchen|shubert|2024|2026|m
+Home|haimes|2024|2024|p
+Illinoise|stjames|2024|2024|m
+JOB|hayes|2024|2024|p
+Kristin: An Evening with Friends for Todd|sondheimny|2024|2024|s
+Left on Tenth|jej|2024|2025|p
+Legacy: An Evening with Maria Friedman and Friends|hudson|2024|2024|s
+Lempicka|longacre|2024|2024|m
 Mary Jane|friedman|2024|2024|p
-Uncle Vanya|beaumont|2024|2024|p
-Oh, Mary!|lyceumny|2024||p
 Maybe Happy Ending|belasco|2024||m
-Death Becomes Her|luntfontanne|2024||m
+McNeal|beaumont|2024|2024|p
+Mother Play|hayes|2024|2024|p
+Oh, Mary!|lyceumny|2024||p
+Once Upon a Mattress|hudson|2024|2024|m
+Our Town|barrymore|2024|2025|p
+Patriots|barrymore|2024|2024|p
+Prayer for the French Republic|friedman|2024|2024|p
+Romeo + Juliet|circle|2024|2025|p
+Romeo and Juliet|circle|2024|2025|p
+South Pacific|beaumont|2024|2024|m
+Stereophonic|golden|2024|2025|p
+Suffs|musicbox|2024|2024|m
+Sunset Boulevard|stjames|2024|2025|m
 Swept Away|longacre|2024|2024|m
 Tammy Faye|palace|2024|2024|m
-Once Upon a Mattress|hudson|2024|2025|m
-Our Town|barrymore|2024|2025|p
-Romeo + Juliet|circle|2024|2025|p
+The Great Gatsby|broadwayth|2024||m
+The Heart of Rock and Roll|jej|2024|2024|m
+The Hills of California|broadhurst|2024|2024|p
+The Notebook|schoenfeld|2024|2024|m
+The Outsiders|jacobs|2024||m
+The Roommate|booth|2024|2024|p
+The Who's Tommy|nederlander|2024|2024|m
+The Wiz|marquis|2024|2024|m
+Uncle Vanya|beaumont|2024|2024|p
+Water For Elephants|imperial|2024|2024|m
 Yellow Face|haimes|2024|2024|p
-Gypsy|majestic|2024|2025|m
-Sunset Boulevard|stjames|2024|2025|m
-Glengarry Glen Ross|palace|2025|2025|p
-Othello|barrymore|2025|2025|p
-Good Night, and Good Luck|wintergarden|2025|2025|p
-Boop! The Musical|broadhurst|2025|2025|m
-Smash|imperial|2025|2025|m
-Real Women Have Curves|jej|2025|2025|m
+A Chorus Line Official 50th Anniversary Celebration|shubert|2025|2025|m
+All Out: Comedy About Ambition|nederlander|2025|2026|p
+Art|musicbox|2025|2025|p
+Beetlejuice|palace|2025|2025|m
+BOOP! The Musical|broadhurst|2025|2025|m
 Buena Vista Social Club|schoenfeld|2025||m
+Call Me Izzy|studio54|2025|2025|p
+Chess|imperial|2025|2026|m
 Dead Outlaw|longacre|2025|2025|m
-Operation Mincemeat|golden|2025||m
+English|haimes|2025|2025|p
+Floyd Collins|beaumont|2025|2025|m
+Glengarry Glen Ross|palace|2025|2025|p
+Good Night, and Good Luck|wintergarden|2025|2025|p
+Jeff Ross: Take a Banana For the Ride|nederlander|2025|2025|p
+John Proctor is the Villain|booth|2025|2025|p
 Just in Time|circle|2025||m
+Liberation|jej|2025|2026|p
+Little Bear Ridge Road|booth|2025|2025|p
+Mamma Mia!|wintergarden|2025|2026|m
+Marjorie Prime|hayes|2025|2026|p
+Oedipus|studio54|2025|2026|p
+Operation Mincemeat|golden|2025||m
+Othello|barrymore|2025|2025|p
 Pirates! The Penzance Musical|haimes|2025|2025|m
-John Proctor Is the Villain|booth|2025|2025|p
+Punch|friedman|2025|2025|p
 Purpose|hayes|2025|2025|p
-The Picture of Dorian Gray|musicbox|2025|2025|p
-Stranger Things: The First Shadow|marquis|2025||p
-Mamma Mia!|wintergarden|2025||m
 Ragtime|beaumont|2025||m
-Chess|imperial|2025||m
-Waiting for Godot|hudson|2025||p`);
+Real Women Have Curves|jej|2025|2025|m
+Redwood|nederlander|2025|2025|m
+Rob Lake Magic with Special Guests The Muppets|broadhurst|2025|2025|s
+Smash|imperial|2025|2025|m
+Stephen Sondheim's Old Friends|friedman|2025|2025|m
+Stranger Things: The First Shadow|marquis|2025||p
+The Last Five Years|hudson|2025|2025|m
+The Picture of Dorian Gray|musicbox|2025|2025|p
+The Queen of Versailles|stjames|2025|2025|m
+Trisha Paytas’ Big Broadway Dream|stjames|2025|2025|m
+Two Strangers (Carry a Cake Across New York)|longacre|2025||m
+Waiting for Godot|hudson|2025|2025|p
+860|imperial|2026||p
+A Few Good Men|beaumont|2026||p
+An Evening with Kelli O'Hara|beaumont|2026|2026|s
+Beaches, A New Musical|majestic|2026|2026|m
+Becky Shaw|hayes|2026|2026|p
+Blue Man Group "A New Holiday Surprise"|luntfontanne|2026|2026|s
+Bug|friedman|2026|2026|p
+Cats: The Jellicle Ball|broadhurst|2026|2026|m
+Celebrity Autobiography|shubert|2026|2026|s
+Dear Friend: A Tribute Concert for Scott Ellis|studio54|2026|2026|m
+Death of a Salesman|wintergarden|2026|2026|p
+Dog Day Afternoon|augustwilson|2026|2026|p
+Downstate|booth|2026|2026|p
+Every Brilliant Thing|hudson|2026|2026|p
+Fallen Angels|haimes|2026|2026|p
+Galileo|shubert|2026|2026|m
+Giant|musicbox|2026|2026|p
+Here There Are Blueberries|barrymore|2026|2026|s
+Inter Alia|musicbox|2026|2026|s
+It's a Wonderful Life: A Live Radio Play|broadhurst|2026|2026|s
+Joe Turner's Come and Gone|barrymore|2026|2026|p
+Man of La Mancha|beaumont|2026|2026|m
+Much Ado About Nothing|wintergarden|2026|2026|p
+Now You See Me Live|hirschfeld|2026|2026|s
+Other Desert Cities|hudson|2026||p
+Paranormal Activity|augustwilson|2026||p
+Proof|booth|2026|2026|p
+Rent|rodgers|2026|2026|m
+Schmigadoon!|nederlander|2026||s
+School Girls; Or, The African Mean Girls Play|friedman|2026||p
+The Balusters|friedman|2026|2026|p
+The Fantasticks|hayes|2026|2026|m
+The Fear of 13|jej|2026|2026|p
+The Imaginary Invalid|haimes|2026||s
+The Lost Boys|palace|2026||m
+The Rocky Horror Show|studio54|2026||m
+Titaníque|stjames|2026|2026|m
+Wanted|jej|2026||m`);
 addShows('westend', `
 The Mousetrap|stmartins|1974||p
 Les Misérables|sondheimlon|1985||m
@@ -676,114 +1135,607 @@ The Phantom of the Opera|hismajestys|1986||m
 Blood Brothers|phoenix|1988|2012|m
 The Woman in Black|fortune|1989|2023|p
 Chicago|garrick|1997|2012|m
-The Lion King|lyceumlon|1999||m
 Mamma Mia!|novello|1999||m
+The Lion King|lyceumlon|1999||m
 We Will Rock You|dominion|2002|2014|m
+Mamma Mia!|princeofwales|2004|2012|m
 Billy Elliot the Musical|victoriapalace|2005|2016|m
-The 39 Steps|criterion|2006|2015|p
+Chicago|cambridge|2006|2011|m
 Dirty Dancing|aldwych|2006|2011|m
+John Buchan’s ‘The 39&#8239;Steps’|criterion|2006|2015|x
+The 39 Steps|criterion|2006|2015|p
 Wicked|apollovic|2006||m
+Grease|piccadilly|2007|2011|m
+Stomp|ambassadors|2007|2018|x
 Jersey Boys|piccadilly|2008|2022|m
+La Cage aux Folles|playhouse|2008|2010|m
+An Inspector Calls|wyndhams|2009|2010|p
+Calendar Girls|noelcoward|2009|2010|x
+Camille O’Sullivan – The Dark Angel|apollo|2009|2010|x
+Cat On A Hot Tin Roof|novello|2009|2010|x
+Change|garrick|2009|2010|x
 Oliver!|drurylane|2009|2011|m
 Priscilla Queen of the Desert|palacelon|2009|2011|m
 Sister Act|palladium|2009|2010|m
+The Misanthrope|haroldpinter|2009|2010|x
+The Rise and Fall of Little Voice|vaudeville|2009|2010|p
 Thriller Live|lyriclon|2009|2020|m
 War Horse|gillianlynne|2009|2016|p
+All My Sons|apollo|2010|2010|p
+All the Fun of the Fair|garrick|2010|2010|x
+An Ideal Husband|vaudeville|2010|2011|x
+Avenue Q|wyndhams|2010|2010|m
+Bedroom Farce|dukeofyorks|2010|2010|p
+Bill Bailey – Dandelion Mind|wyndhams|2010|2011|x
+Birdsong|haroldpinter|2010|2011|x
+Deathtrap|noelcoward|2010|2011|p
+Dreamboats and Petticoats|playhouse|2010|2012|x
+Enron|noelcoward|2010|2010|p
+Ghost Stories|dukeofyorks|2010|2011|x
+Grumpy Old Women Live|novello|2010|2010|x
+Hair|gielgud|2010|2010|m
+La Bête|haroldpinter|2010|2010|p
 Legally Blonde|savoy|2010|2012|m
 Love Never Dies|adelphi|2010|2011|m
-Shrek the Musical|drurylane|2011|2013|m
-Matilda the Musical|cambridge|2011||m
-Ghost the Musical|piccadilly|2011|2012|m
-The Wizard of Oz|palladium|2011|2012|m
+Marcus Brigstocke – God Collar|vaudeville|2010|2010|x
+Megan Mullally & Supreme Music Programme|vaudeville|2010|2010|x
+Morecambe|duchess|2010|2010|x
+Onassis|novello|2010|2011|x
+Pam Ann – Flying High|vaudeville|2010|2010|x
+Private Lives|vaudeville|2010|2010|p
+Tap Dogs|novello|2010|2010|x
+The Country Girl|apollo|2010|2011|p
+The Little Dog Laughed|garrick|2010|2010|p
+The Night Before Christmas|ambassadors|2010|2010|x
+The Prisoner of Second Avenue|vaudeville|2010|2010|p
+The Secret of Sherlock Holmes|duchess|2010|2010|x
+Yes, Prime Minister|gielgud|2010|2010|x
+A Round-Heeled Woman|aldwych|2011|2012|x
+Backbeat|dukeofyorks|2011|2012|x
+Betrayal|haroldpinter|2011|2011|p
 Betty Blue Eyes|novello|2011|2011|m
+Blithe Spirit|apollo|2011|2011|p
+Broken Glass|vaudeville|2011|2011|p
+Butley|duchess|2011|2011|x
+Christmas with the Rat Pack: Live from Las Vegas|wyndhams|2011|2012|x
+Clybourne Park|wyndhams|2011|2011|p
+Crazy for You|novello|2011|2012|m
+Death and the Maiden|haroldpinter|2011|2012|p
+Driving Miss Daisy|wyndhams|2011|2011|p
+Ghost the Musical|piccadilly|2011|2012|m
+In a Forest, Dark and Deep|vaudeville|2011|2011|x
 Jerusalem|apollo|2011|2011|p
+Lend Me a Tenor|gielgud|2011|2011|p
+Matilda the Musical|cambridge|2011||m
+Micky Flanagan – The ‘Out Out’ Tour|garrick|2011|2011|x
+Million Dollar Quartet|noelcoward|2011|2012|m
+Much Ado About Nothing|wyndhams|2011|2011|p
 One Man, Two Guvnors|haymarket|2011|2014|p
+One Man, Two Guvnors|adelphi|2011|2012|p
+Park Avenue Cat|arts|2011|2011|x
+Potted Potter|garrick|2011|2013|x
+Pygmalion|garrick|2011|2011|x
+Respect La Diva|garrick|2011|2011|x
 Rock of Ages|garrick|2011|2013|m
+Santa Claus and the Christmas Adventure|ambassadors|2011|2011|x
+Shout!|arts|2011|2011|x
+Showstopper! – The Improvised Musical|ambassadors|2011|2011|m
+Shrek the Musical|drurylane|2011|2013|m
+Swallows and Amazons|vaudeville|2011|2012|x
+The Flying Karamazov Brothers|vaudeville|2011|2011|x
+The Hurly Burly Show|garrick|2011|2011|x
+The Ladykillers|gielgud|2011|2011|x
+The Sooty Christmas Show|garrick|2011|2011|x
+The Umbrellas of Cherbourg|gielgud|2011|2011|x
+The Wizard of Oz|palladium|2011|2012|m
+Woody Sez, The Life & Music of Woody Guthrie|arts|2011|2011|x
+Yes Prime Minister|apollo|2011|2011|x
+A Chorus of Disapproval|haroldpinter|2012|2013|x
+A Christmas Carol, Simon Callow; Assembly & Riverside Studios|arts|2012|2013|x
+Absent Friends|haroldpinter|2012|2012|x
+All New People|dukeofyorks|2012|2012|x
+Baggage|arts|2012|2012|x
+Cabaret|savoy|2012|2013|m
+Chariots of Fire|gielgud|2012|2012|x
+Constellations|dukeofyorks|2012|2013|p
+Dreamboats and Petticoats|wyndhams|2012|2013|x
+Fitzrovia Radio Hour|ambassadors|2012|2012|x
+Gatz|noelcoward|2012|2012|x
+Goodnight Mr Tom|phoenix|2012|2013|x
+Hay Fever|noelcoward|2012|2012|x
+Jackie Mason – Fearless|wyndhams|2012|2012|x
+Julius Caesar|noelcoward|2012|2012|x
+Jumpy|dukeofyorks|2012|2012|x
+Let It Be|princeofwales|2012|2013|x
+Little Charley Bear and his Christmas Adventure|ambassadors|2012|2012|x
+Long Day’s Journey Into Night|apollo|2012|2012|p
+Loserville|garrick|2012|2013|x
+Master Class|vaudeville|2012|2012|p
+Much Ado About Nothing|noelcoward|2012|2012|p
+Noises Off|novello|2012|2012|p
+Our Boys|duchess|2012|2012|x
+Paul Merton – Out of My Head|vaudeville|2012|2012|x
+Peppa Pig – Treasure Hunt|criterion|2012|2013|x
+Posh|dukeofyorks|2012|2012|x
+Privates on Parade|noelcoward|2012|2013|x
+Richard III|apollo|2012|2012|p
 Singin' in the Rain|palacelon|2012|2013|m
-Top Hat|aldwych|2012|2013|m
+South Downs|haroldpinter|2012|2012|x
+Spamalot|haroldpinter|2012|2012|m
+Spamalot|playhouse|2012|2014|m
+Summer Arts Sundays|arts|2012|2012|x
 The Bodyguard|adelphi|2012|2014|m
+The Hurly Burly Show|duchess|2012|2012|x
+The King’s Speech|wyndhams|2012|2012|x
+The Madness of George III|apollo|2012|2012|x
+The Mystery of Charles Dickens|playhouse|2012|2012|x
+The Rat Pack: Live From Las Vegas|wyndhams|2012|2012|x
+The Sunshine Boys|savoy|2012|2012|p
+Top Hat|aldwych|2012|2013|m
+Uncle Vanya|noelcoward|2012|2012|p
+Uncle Vanya|vaudeville|2012|2013|p
 Viva Forever!|piccadilly|2012|2013|m
-The Book of Mormon|princeofwales|2013||m
+Volcano|vaudeville|2012|2012|x
+What the Butler Saw|vaudeville|2012|2012|x
+What You Will|apollo|2012|2012|x
+A Chorus Line|palladium|2013|2013|m
+Barking in Essex|wyndhams|2013|2014|x
 Charlie and the Chocolate Factory|drurylane|2013|2017|m
-Once|phoenix|2013|2015|m
-The Commitments|palacelon|2013|2015|m
+Chimerica|haroldpinter|2013|2013|x
+Dirty Dancing|piccadilly|2013|2014|m
+Doktor Glas|wyndhams|2013|2013|x
+Fences|duchess|2013|2013|p
 From Here to Eternity|shaftesbury|2013|2014|m
+Great Expectations|vaudeville|2013|2013|x
+Henry V|noelcoward|2013|2014|x
+Jeeves and Wooster in Perfect Nonsense|dukeofyorks|2013|2014|x
+Let It Be|savoy|2013|2014|x
+Merrily We Roll Along|haroldpinter|2013|2013|m
+Mojo|haroldpinter|2013|2014|x
+Old Times|haroldpinter|2013|2013|p
+Once|phoenix|2013|2015|m
+Passion Play|dukeofyorks|2013|2013|x
+Peter and Alice|noelcoward|2013|2013|x
+Private Lives|gielgud|2013|2013|p
+Quartermaine’s Terms|wyndhams|2013|2013|x
+Relatively Speaking|wyndhams|2013|2013|p
+Seussical the Musical|arts|2013|2014|m
 Stephen Ward|aldwych|2013|2014|m
+Strangers on a Train|gielgud|2013|2013|x
+The Audience|gielgud|2013|2013|p
+The Book of Mormon|princeofwales|2013||m
+The Commitments|palacelon|2013|2015|m
+The Cripple of Inishmaan|noelcoward|2013|2013|p
 The Curious Incident of the Dog in the Night-Time|gielgud|2013|2017|p
-Miss Saigon|princeedward|2014|2016|m
-Memphis|shaftesbury|2014|2015|m
+The Curious Incident of the Dog in the Night-Time|apollo|2013|2014|p
+The Duck House|vaudeville|2013|2014|x
+The Judas Kiss|dukeofyorks|2013|2013|x
+The Ladykillers|vaudeville|2013|2013|x
+The West End Men|vaudeville|2013|2013|x
+Untold Stories (Hymn & Cocktail Sticks)|duchess|2013|2013|x
+1984|playhouse|2014|2016|p
+Bakersfield Mist|duchess|2014|2015|x
+Blithe Spirit|gielgud|2014|2014|p
+Cool Rider|duchess|2014|2014|x
+Dance ’Til Dawn|aldwych|2014|2015|x
+Evita|dominion|2014|2014|m
+Forbidden Broadway|vaudeville|2014|2014|x
+Ghost Stories|arts|2014|2014|x
+Good People|noelcoward|2014|2014|p
+Handbagged|vaudeville|2014|2014|x
+King Charles III|wyndhams|2014|2015|p
+Let the Right One In|apollo|2014|2014|x
 Made in Dagenham|adelphi|2014|2015|m
+Maria Friedman & Adam Guettel|ambassadors|2014|2014|x
+Memphis|shaftesbury|2014|2015|m
+Miss Saigon|princeedward|2014|2016|m
+Peppa Pig’s Big Splash|criterion|2014|2015|x
+Relative Values|haroldpinter|2014|2014|x
+Shakespeare in Love|noelcoward|2014|2015|x
+Skylight|wyndhams|2014|2014|p
+Sunny Afternoon|haroldpinter|2014|2016|x
+The Confessions of Gordon Brown|ambassadors|2014|2014|x
+The Full Monty|noelcoward|2014|2014|m
+The Importance of Being Earnest|haroldpinter|2014|2014|p
 The Play That Goes Wrong|duchess|2014||p
+The Weir|wyndhams|2014|2014|p
+The Wind in the Willows|vaudeville|2014|2015|x
+Uncle Vanya|wyndhams|2014|2014|p
+Urinetown|apollo|2014|2014|m
+30 Million Minutes|vaudeville|2015|2015|x
+A Christmas Carol|noelcoward|2015|2016|p
+A View from the Bridge|wyndhams|2015|2015|p
+American Buffalo|wyndhams|2015|2015|p
 Beautiful: The Carole King Musical|aldwych|2015|2017|m
-Kinky Boots|adelphi|2015|2019|m
-Gypsy|savoy|2015|2015|m
-Guys and Dolls|savoy|2015|2016|m
 Bend It Like Beckham|phoenix|2015|2016|m
-Funny Girl|savoy|2016|2016|m
+Bill Bailey: Limbo Land|vaudeville|2015|2016|x
+Dear Lupin|apollo|2015|2015|x
+Death of a Salesman|noelcoward|2015|2015|p
+Di and Viv and Rose|vaudeville|2015|2015|x
+Elf the Musical|dominion|2015|2016|m
+Farinelli and the King|dukeofyorks|2015|2015|p
+Frozen|dominion|2015|2015|m
+Goodnight Mister Tom|dukeofyorks|2015|2016|x
+Green Day’s American Idiot|arts|2015|2015|x
+Guys and Dolls|savoy|2015|2016|m
+Gypsy|savoy|2015|2015|m
+Hay Fever|dukeofyorks|2015|2015|x
+Hetty Feather|dukeofyorks|2015|2015|x
+Impossible|noelcoward|2015|2015|x
+Just Jim Dale|vaudeville|2015|2015|x
+Kinky Boots|adelphi|2015|2019|m
+Let It Be|garrick|2015|2015|x
+Lord of the Dance: Dangerous Games|dominion|2015|2015|x
+Lord of the Dance: Dangerous Games|playhouse|2015|2016|x
+My Night with Reg|apollo|2015|2015|x
+Oppenheimer|vaudeville|2015|2015|x
+Peter Pan Goes Wrong|apollo|2015|2016|p
+Photograph 51|noelcoward|2015|2015|x
+The Audience|apollo|2015|2015|p
+The Father|wyndhams|2015|2015|p
+The Importance of Being Earnest|vaudeville|2015|2015|p
+The Mentalists|wyndhams|2015|2015|x
+The Nether|dukeofyorks|2015|2015|x
+The Rocky Horror Show|playhouse|2015|2015|m
+Ushers|arts|2015|2015|x
+Women on the Verge of a Nervous Breakdown|playhouse|2015|2015|m
 Aladdin|princeedward|2016|2019|m
-School of Rock|gillianlynne|2016|2020|m
-Motown the Musical|shaftesbury|2016|2019|m
+An Inspector Calls|playhouse|2016|2017|p
+Dead Funny|vaudeville|2016|2017|x
+Dirty Dancing|phoenix|2016|2016|m
+Doctor Faustus|dukeofyorks|2016|2016|x
 Dreamgirls|savoy|2016|2019|m
-Harry Potter and the Cursed Child|palacelon|2016||p
-Hangmen|wyndhams|2016|2016|p
+Eugenius!|palladium|2016|2016|x
+Funny Girl|savoy|2016|2016|m
+Guys and Dolls|phoenix|2016|2016|m
 Half a Sixpence|noelcoward|2016|2017|m
+Hand to God|vaudeville|2016|2016|p
+Hangmen|wyndhams|2016|2016|p
+Harry Potter and the Cursed Child|palacelon|2016||p
+How the Other Half Loves|dukeofyorks|2016|2016|p
+Motown the Musical|shaftesbury|2016|2019|m
+Mrs Henderson Presents|noelcoward|2016|2016|x
+My Family: Not the Sitcom|vaudeville|2016|2016|x
+Nell Gwynn|apollo|2016|2016|x
+Nice Fish|haroldpinter|2016|2017|x
+Nina Conti – In Your Face|criterion|2016|2016|x
+People, Places and Things|wyndhams|2016|2016|x
+Potted Panto|garrick|2016|2017|x
+Quentin Crisp: Naked Hope|arts|2016|2016|x
+School of Rock|gillianlynne|2016|2020|m
+Show Boat|gillianlynne|2016|2016|x
+The Bodyguard|dominion|2016|2017|x
+The Dresser|dukeofyorks|2016|2017|p
+The End of Longing|playhouse|2016|2016|x
+The Father|dukeofyorks|2016|2016|p
+The Go-Between|apollo|2016|2016|x
+The Truth|wyndhams|2016|2016|p
+The War of the Worlds|dominion|2016|2016|x
 42nd Street|drurylane|2017|2019|m
-Hamilton|victoriapalace|2017||m
-Everybody's Talking About Jamie|apollo|2017|2021|m
-Young Frankenstein|garrick|2017|2018|m
-The Ferryman|gielgud|2017|2018|p
+A Woman of No Importance|vaudeville|2017|2017|x
 An American in Paris|dominion|2017|2018|m
 Annie|piccadilly|2017|2018|m
 Bat Out of Hell|dominion|2017|2018|m
-Tina: The Tina Turner Musical|aldwych|2018|2024|m
-Company|gielgud|2018|2019|m
+Cat – the Play!!!|ambassadors|2017|2017|x
+Cat on a Hot Tin Roof|apollo|2017|2017|x
+David Baddiel - My Family: Not The Sitcom|playhouse|2017|2017|x
+Dirty Great Love Story|arts|2017|2017|x
+Don Juan in Soho|wyndhams|2017|2017|x
+Everybody's Talking About Jamie|apollo|2017|2021|m
+Evita|phoenix|2017|2017|m
+Gangsta Granny|garrick|2017|2017|x
+Glengarry Glen Ross|playhouse|2017|2018|p
+Hamilton|victoriapalace|2017||m
+Hamlet|haroldpinter|2017|2017|p
+Heisenberg: The Uncertainty Principle|wyndhams|2017|2018|x
+Horrible Histories: More Best of Barmy Britain|garrick|2017|2019|x
+Ink|dukeofyorks|2017|2018|p
+Judy!|arts|2017|2017|x
+La Soirée|aldwych|2017|2018|x
+Labour of Love|noelcoward|2017|2017|x
+Lady Day At Emerson’s Bar And Grill|wyndhams|2017|2017|p
+Oslo|haroldpinter|2017|2017|p
+Our Ladies of Perpetual Succour|dukeofyorks|2017|2017|x
+Stepping Out|vaudeville|2017|2017|p
+Tape Face|garrick|2017|2017|x
+The Boys in the Band|vaudeville|2017|2017|p
+The Exorcist|phoenix|2017|2018|x
+The Ferryman|gielgud|2017|2018|p
+The Girls|phoenix|2017|2017|x
+The Glass Menagerie|dukeofyorks|2017|2017|p
+The Kite Runner|playhouse|2017|2017|p
+The Kite Runner|wyndhams|2017|2017|p
+The Mentor|vaudeville|2017|2017|x
+The Miser|garrick|2017|2017|x
+The Very Hungry Caterpillar|ambassadors|2017|2018|x
+The Wind in the Willows|palladium|2017|2017|x
+Travesties|apollo|2017|2017|p
+Who’s Afraid of Virginia Woolf?|haroldpinter|2017|2017|p
+Young Frankenstein|garrick|2017|2018|m
+All or Nothing|ambassadors|2018|2018|x
+An Ideal Husband|vaudeville|2018|2018|x
+Beginning|ambassadors|2018|2018|x
+Bill Bailey - Larks in Transit|wyndhams|2018|2019|x
+Camelot|palladium|2018|2018|m
+Caroline, Or Change|playhouse|2018|2019|m
 Chicago|phoenix|2018|2019|m
+Company|gielgud|2018|2019|m
+Consent|haroldpinter|2018|2018|x
+Foxfinder|ambassadors|2018|2018|x
+Girl from the North Country|noelcoward|2018|2018|m
+Imperium|gielgud|2018|2018|x
+Katherine Ryan – Glitter Room|garrick|2018|2018|x
+King Lear|dukeofyorks|2018|2018|p
+Landscape|haroldpinter|2018|2018|x
+Long Day’s Journey Into Night|wyndhams|2018|2018|p
+Mary Stuart|dukeofyorks|2018|2018|x
+Mindgame|ambassadors|2018|2018|x
+Moonlight|haroldpinter|2018|2018|m
+One for the Road|haroldpinter|2018|2018|x
+Precisely|haroldpinter|2018|2018|x
+Press Conference|haroldpinter|2018|2018|x
+Quiz|noelcoward|2018|2018|x
+Red|wyndhams|2018|2018|p
+Ruthless! The Musical|arts|2018|2018|m
+Shen Yun|dominion|2018|2018|x
+Six|arts|2018|2020|m
+Strictly Ballroom|piccadilly|2018|2018|x
+Summer and Smoke|dukeofyorks|2018|2019|p
+The Best Man|playhouse|2018|2018|p
+The Birthday Party|haroldpinter|2018|2018|p
+The Curious Incident of the Dog in the Night-Time|piccadilly|2018|2019|p
+The Height of the Storm|wyndhams|2018|2018|p
+The Importance of Being Earnest|vaudeville|2018|2018|p
+The Inheritance|noelcoward|2018|2019|p
+The Jungle|playhouse|2018|2018|x
 The King and I|palladium|2018|2018|m
-Six|vaudeville|2019||m
-Come From Away|phoenix|2019|2023|m
-Dear Evan Hansen|noelcoward|2019|2020|m
-Waitress|adelphi|2019|2020|m
+The Lieutenant of Inishmore|noelcoward|2018|2018|p
+The Lover|haroldpinter|2018|2018|x
+The Moderate Soprano|dukeofyorks|2018|2018|x
+The Plough and the Stars|lyriclon|2018|2018|p
+Tina: The Tina Turner Musical|aldwych|2018|2024|m
+True West|vaudeville|2018|2019|p
 & Juliet|shaftesbury|2019|2023|m
-Mary Poppins|princeedward|2019|2023|m
-The Lehman Trilogy|piccadilly|2019|2019|p
-Magic Goes Wrong|vaudeville|2019|2020|p
+9 to 5&#8239;the Musical|savoy|2019|2020|m
+A Slight Ache|haroldpinter|2019|2019|x
+All About Eve|noelcoward|2019|2019|x
+Betrayal|haroldpinter|2019|2019|p
+Big: The Musical|dominion|2019|2019|m
+Bitter Wheat|garrick|2019|2019|x
+Captain Corelli’s Mandolin|haroldpinter|2019|2019|x
+Come From Away|phoenix|2019|2023|m
+Curtains|wyndhams|2019|2020|m
+Cyrano de Bergerac|playhouse|2019|2020|p
+Dear Evan Hansen|noelcoward|2019|2021|m
+Death of a Salesman|piccadilly|2019|2020|p
+Emilia|vaudeville|2019|2019|x
+Fiddler on the Roof|playhouse|2019|2019|m
+Fleabag|wyndhams|2019|2019|x
+Ghost Stories|ambassadors|2019|2019|x
+Girl from the North Country|gielgud|2019|2019|m
+Groan Ups|vaudeville|2019|2019|x
+Heartbeat of Home|piccadilly|2019|2019|x
+Home, I’m Darling|dukeofyorks|2019|2019|x
+Ian McKellen On Stage: Shakespeare, Tolkien, Others and You|haroldpinter|2019|2020|x
 Joseph and the Amazing Technicolor Dreamcoat|palladium|2019|2021|m
+Les Misérables – The Staged Concert|gielgud|2019|2019|x
+Magic Goes Wrong|vaudeville|2019|2020|p
+Mary Poppins|princeedward|2019|2023|m
+Noises Off|lyriclon|2019|2019|p
+Party Time|haroldpinter|2019|2019|x
+Rip It Up|garrick|2019|2019|x
+Rosmersholm|dukeofyorks|2019|2019|x
+Six|vaudeville|2019||m
+Switzerland|ambassadors|2019|2020|x
+The Catherine Tate Show Live|wyndhams|2019|2019|x
+The Girl on the Train|dukeofyorks|2019|2019|x
+The Lehman Trilogy|piccadilly|2019|2019|p
+The Man in the White Suit|wyndhams|2019|2019|x
+The Night of the Iguana|noelcoward|2019|2019|p
+The Price|wyndhams|2019|2019|p
+The Room|haroldpinter|2019|2019|p
+The Son|dukeofyorks|2019|2019|x
+The Starry Messenger|wyndhams|2019|2019|x
+The Worst Witch|vaudeville|2019|2019|x
+Touching the Void|dukeofyorks|2019|2020|x
+Waitress|adelphi|2019|2020|m
+Blithe Spirit|dukeofyorks|2020|2020|p
+Frank Skinner – Showbiz|garrick|2020|2020|x
 Leopoldstadt|wyndhams|2020|2020|p
 Pretty Woman|savoy|2020|2022|m
+Pretty Woman|piccadilly|2020|2020|m
+The Comeback|noelcoward|2020|2021|x
+The Prince of Egypt|dominion|2020|2022|x
+The Upstart Crow|gielgud|2020|2020|x
+The Watsons|haroldpinter|2020|2020|x
+Uncle Vanya|haroldpinter|2020|2020|p
+2.22 A Ghost Story|noelcoward|2021|2021|x
+Amelie – The Musical|criterion|2021|2021|m
+Anna X|haroldpinter|2021|2021|x
+Austentatious|fortune|2021|2021|x
 Back to the Future|adelphi|2021||m
-Frozen|drurylane|2021|2024|m
-Moulin Rouge! The Musical|piccadilly|2021||m
-Cinderella|gillianlynne|2021|2022|m
+Blithe Spirit|haroldpinter|2021|2021|p
 Cabaret at the Kit Kat Club|playhouse|2021||m
-Life of Pi|wyndhams|2021|2022|p
+Cinderella|gillianlynne|2021|2022|m
+Cirque Beserk|garrick|2021|2021|x
+Constellations|vaudeville|2021|2021|p
+Cruise|duchess|2021|2021|x
+Death Drop|garrick|2021|2021|x
+Disney’s Frozen|drurylane|2021|2021|x
+Four Quartets|haroldpinter|2021|2021|x
+Frozen|drurylane|2021|2024|m
 Get Up, Stand Up!|lyriclon|2021|2022|m
+Hair|palladium|2021|2021|m
 Hairspray|coliseum|2021|2021|m
+Here Come The Boys|palladium|2021|2021|x
+Life of Pi|wyndhams|2021|2022|p
+Magic Goes Wrong|apollo|2021|2022|x
+Margaret Thatcher Queen of Soho|garrick|2021|2021|x
+Moulin Rouge! The Musical|piccadilly|2021||m
+Pantoland at the Palladium|palladium|2021|2022|x
+Pride and Prejudice* (*sort of)|criterion|2021|2022|x
+Public Domain|vaudeville|2021|2021|x
 The Drifters Girl|garrick|2021|2022|m
-Jerusalem|apollo|2022|2022|p
-Prima Facie|haroldpinter|2022|2022|p
+The Last Five Years|garrick|2021|2021|m
+The Mirror and the Light|gielgud|2021|2021|x
+The Ocean at the End of the Lane|dukeofyorks|2021|2022|x
+The Phantom of the Opera|haymarket|2021|2021|m
+The Rocky Horror Show|peacock|2021|2021|m
+The Shark is Broken|ambassadors|2021|2022|p
+The Windsors: Endgame|princeofwales|2021|2021|x
+Walden|haroldpinter|2021|2021|x
+A Different Stage|dukeofyorks|2022|2022|x
+As You Like It|sohoplace|2022|2022|x
+Beauty and the Beast|palladium|2022|2022|m
+Best of Enemies|noelcoward|2022|2023|x
+Camelot|palladium|2022|2022|m
+Cruise|apollo|2022|2022|x
+Cyrano de Bergerac|haroldpinter|2022|2022|p
+David Suchet - Poirot and More, A Retrospective|haroldpinter|2022|2022|x
+Derren Brown – Showman|apollo|2022|2023|x
 Good|haroldpinter|2022|2022|p
 Grease|dominion|2022|2023|m
-Mrs. Doubtfire|shaftesbury|2023|2024|m
-Sunset Boulevard|savoy|2023|2024|m
-The Little Big Things|sohoplace|2023|2023|m
-Operation Mincemeat|fortune|2023||m
-Stranger Things: The First Shadow|phoenix|2023||p
+Jerusalem|apollo|2022|2022|p
+Marvellous|sohoplace|2022|2022|x
+Mother Goose|dukeofyorks|2022|2023|m
+Prima Facie|haroldpinter|2022|2022|p
+The Doctor|dukeofyorks|2022|2022|x
+The Glass Menagerie|dukeofyorks|2022|2022|p
+The Human Voice|haroldpinter|2022|2022|x
+The Lion, The Witch, and The Wardrobe|gillianlynne|2022|2023|x
+The Seagull|haroldpinter|2022|2022|x
+The Secret Garden|palladium|2022|2022|m
+The Upstart Crow|apollo|2022|2022|x
+To Kill a Mockingbird|gielgud|2022|2022|p
+2:22 A Ghost Story|apollo|2023|2023|x
+A Little Life|haroldpinter|2023|2023|x
+A Little Life|savoy|2023|2023|x
+Backstairs Billy|dukeofyorks|2023|2024|x
+Brokeback Mountain|sohoplace|2023|2023|x
 Crazy for You|gillianlynne|2023|2024|m
-Patriots|noelcoward|2023|2023|p
 Dear England|princeedward|2023|2023|p
-Hadestown|lyriclon|2024||m
-MJ the Musical|princeedward|2024||m
-Mean Girls|savoy|2024|2024|m
-Standing at the Sky's Edge|gillianlynne|2024|2024|m
-The Devil Wears Prada|dominion|2024||m
-Next to Normal|wyndhams|2024|2024|m
-Titanique|criterion|2024|2025|m
+Death Note: The Musical|palladium|2023|2023|m
+Dirty Dancing|dominion|2023|2023|m
+Dr. Semmelweis|haroldpinter|2023|2023|x
+King Lear|wyndhams|2023|2023|p
+Lemons Lemons Lemons Lemons Lemons|haroldpinter|2023|2023|x
+Lyonesse|haroldpinter|2023|2023|x
+Medea|sohoplace|2023|2023|x
+Mrs. Doubtfire|shaftesbury|2023|2024|m
+Oklahoma!|wyndhams|2023|2023|m
+Once|palladium|2023|2023|m
+Operation Mincemeat|fortune|2023||m
+Patriots|noelcoward|2023|2023|p
+Shirley Valentine|dukeofyorks|2023|2023|p
+Stranger Things: The First Shadow|phoenix|2023||p
+Sunset Boulevard|savoy|2023|2024|m
+Tailenders: The Live Show|palladium|2023|2023|x
+The Crucible|gielgud|2023|2023|p
+The Enfield Haunting|ambassadors|2023|2024|x
+The Great British Bake Off Musical|noelcoward|2023|2023|m
+The Lehman Trilogy|gillianlynne|2023|2023|p
+The Little Big Things|sohoplace|2023|2023|m
+The Motive and the Cue|noelcoward|2023|2024|x
+The Ocean at the End of the Lane|noelcoward|2023|2023|x
+The Old Man and the Pool|wyndhams|2023|2023|x
+The Pillowman|dukeofyorks|2023|2023|p
+The Unfriend|wyndhams|2023|2024|x
+The Wizard of Oz|palladium|2023|2023|x
+Vanya|dukeofyorks|2023|2023|x
+A Christmas Carol-ish|sohoplace|2024|2024|x
+An Enemy of the People|dukeofyorks|2024|2024|p
+Barcelona|dukeofyorks|2024|2025|x
+Death of England|sohoplace|2024|2024|x
+Dirty Rotten Scoundrels|palladium|2024|2024|m
+Dr. Strangelove|noelcoward|2024|2024|x
 Fawlty Towers|apollo|2024||p
-Romeo & Juliet|dukeofyorks|2024|2024|p
+Hadestown|lyriclon|2024||m
+Harry Clarke|ambassadors|2024|2024|x
+Heathers: The Musical|sohoplace|2024|2024|m
+Hello, Dolly!|palladium|2024|2024|m
+Juno and the Paycock|gielgud|2024|2024|x
+Kathy and Stella Solve a Murder!|ambassadors|2024|2024|x
+Macbeth|haroldpinter|2024|2024|p
+Mean Girls|savoy|2024|2024|m
+Mind Mangler: Member of the Tragic Circle|apollo|2024|2024|x
+MJ the Musical|princeedward|2024||m
+Next to Normal|wyndhams|2024|2024|m
+Oedipus|wyndhams|2024|2025|p
 Oliver!|gielgud|2024|2025|m
-Paddington The Musical|savoy|2025||m
+Opening Night|gielgud|2024|2024|x
+Player Kings|noelcoward|2024|2024|x
+Red Pitch|sohoplace|2024|2024|x
+Romeo & Juliet|dukeofyorks|2024|2024|p
+Sensory Cinders|sohoplace|2024|2024|x
+Shifters|dukeofyorks|2024|2024|x
+Sister Act|dominion|2024|2024|m
+Slava’s Snow Show|haroldpinter|2024|2025|x
+Slave Play|noelcoward|2024|2024|p
+Standing at the Sky's Edge|gillianlynne|2024|2024|m
+The Addams Family|palladium|2024|2024|m
+The Curious Case of Benjamin Button|ambassadors|2024|2025|x
+The Devil Wears Prada|dominion|2024||m
+The Hills of California|haroldpinter|2024|2024|p
+The King and I|dominion|2024|2024|m
+The Wizard of Oz|gillianlynne|2024|2024|x
+Titanique|criterion|2024|2025|m
+Two Strangers (Carry a Cake Across New York)|criterion|2024|2024|m
+White Rabbit Red Rabbit|sohoplace|2024|2024|x
+Your Lie In April|haroldpinter|2024|2024|x
+A Christmas Carol Goes Wrong|apollo|2025|2026|x
+A Man for All Seasons|haroldpinter|2025|2025|p
+A Streetcar Named Desire|noelcoward|2025|2025|p
+All My Sons|wyndhams|2025|2026|p
+Born With Teeth|wyndhams|2025|2025|x
+Burlesque the musical|savoy|2025|2025|p
+Elektra|dukeofyorks|2025|2025|x
+Elf the Musical|aldwych|2025|2026|m
+Every Brilliant Thing|sohoplace|2025|2025|p
 Evita|palladium|2025|2025|m
-The Great Gatsby|coliseum|2025|2025|m`);
+Figaro: An Original Musical|palladium|2025|2025|m
+Giant|haroldpinter|2025|2025|p
+High Noon|haroldpinter|2025|2026|x
+I’m Sorry, Prime Minister|apollo|2025||x
+Inside No. 9 Stage/Fright|wyndhams|2025|2025|x
+Kyoto|sohoplace|2025|2025|x
+My Master Builder|wyndhams|2025|2025|x
+My Neighbour Totoro|gillianlynne|2025||x
+Paddington The Musical|savoy|2025||m
+Paranormal Activity|ambassadors|2025|2026|p
+Punch|apollo|2025|2025|p
+Stereophonic|dukeofyorks|2025|2025|p
+The Comedy about Spies|noelcoward|2025|2025|x
+The Fifth Step|sohoplace|2025|2025|x
+The Great Gatsby|coliseum|2025|2025|m
+The Importance of Being Earnest|noelcoward|2025|2026|p
+The Last Laugh|noelcoward|2025|2025|x
+The Spy Who Came in from the Cold|sohoplace|2025|2025|x
+The Weir|haroldpinter|2025|2025|p
+The Years|haroldpinter|2025|2025|x
+Woman in Mind|dukeofyorks|2025|2026|x
+Allegra|haroldpinter|2026|2026|x
+Arcadia|dukeofyorks|2026|2026|p
+Christmas Carol Goes Wrong|wyndhams|2026|2026|x
+Cyrano de Bergerac|noelcoward|2026|2026|p
+Dracula|noelcoward|2026|2026|m
+Hay Fever|wyndhams|2026|2026|x
+Inter Alia|wyndhams|2026|2026|x
+Into the Woods|noelcoward|2026|2026|m
+Jesus Christ Superstar|palladium|2026|2026|m
+Love Never Dies|palladium|2026|2026|x
+Marie & Rosetta|sohoplace|2026|2026|x
+Now You See Me – Live|coliseum|2026|2026|x
+Rent|dukeofyorks|2026|2026|m
+Romeo & Juliet|haroldpinter|2026|2026|p
+Sinatra|aldwych|2026|2026|x
+Tao of Glass|sohoplace|2026|2026|x
+The Boy Who Harnessed the Wind|sohoplace|2026|2026|x
+The Cherry Orchard|haroldpinter|2026|2026|p
+The Guy Who Didn’t Like Musicals|apollo|2026|2026|x
+The Last Five Years|palladium|2026|2026|m
+The Lives of Others|adelphi|2026|2026|x
+The Truth|apollo|2026|2026|p
+To Kill a Mockingbird|wyndhams|2026|2026|p`);
 
 const CATS = {
   broadway: 'Broadway', offbroadway: 'Off-Broadway', offoff: 'Off-Off-Broadway',
@@ -792,7 +1744,7 @@ const CATS = {
 };
 const TIERS = { broadway: 'Broadway', offbroadway: 'Off-Broadway', offoff: 'Off-Off-Broadway', opera: 'Opera, dance & concert halls', westend: 'West End', offwestend: 'Off-West End', fringe: 'Fringe', house: 'Theatres' };
 const TIER_ORDER = ['broadway', 'westend', 'offbroadway', 'offwestend', 'offoff', 'fringe', 'opera', 'house'];
-const KINDS = { m: 'Musical', p: 'Play', o: 'Opera', d: 'Dance', x: 'Other' };
+const KINDS = { m: 'Musical', p: 'Play', o: 'Opera', d: 'Dance', s: 'Special', x: 'Other' };
 const FIRST_YEAR = 2010;
 const THIS_YEAR = new Date().getFullYear();
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1041,7 +1993,7 @@ function renderShows() {
     return `<div class="item">
       <button class="tick" data-act="tick" data-show="${esc(s.id)}" aria-pressed="${vs.length > 0}" aria-label="${vs.length ? 'Seen: ' : 'Mark as seen: '}${esc(s.t)}">${tick}</button>
       <div class="item-main"><div class="item-title">${esc(s.t)}</div>
-        <div class="item-sub">${esc(th ? th.n : '')} · ${KINDS[s.k] || ''} · ${runLabel(s)}</div>
+        <div class="item-sub">${[th ? esc(th.n) : '', s.k !== 'x' ? KINDS[s.k] : '', runLabel(s)].filter(Boolean).join(' · ')}</div>
         ${opened || closed ? `<div class="row" style="margin-top:4px">${opened}${closed}</div>` : ''}</div>
       <div class="item-side">${vs.length ? stars(Math.max(...vs.map(v => v.rating || 0))) + `<span>${inYear ? 'Seen in ' + year : 'Seen ' + vs.map(v => v.year).filter(Boolean).sort().join(', ')}</span>` : ''}</div>
     </div>`;
@@ -1058,7 +2010,10 @@ function renderShows() {
     <div class="meter" aria-hidden="true"><i style="width:${all.length ? seenCount / all.length * 100 : 0}%"></i></div>
     <div class="toolbar"><input type="search" id="sq" placeholder="Search ${label} ${year}" value="${esc(state.q)}" aria-label="Search shows"></div>
     ${list.length ? `<div class="list">${rows}</div>` : `<p class="note">No shows match. Add one with “Add a missing show”.</p>`}
-    <p class="note">This list covers the main ${label} productions from ${FIRST_YEAR} on, built from memory, so a few dates or venues may be off and some shorter runs are missing. Add anything that's missing and it joins the list for every year it ran.</p>`;
+    <p class="note">${region === 'broadway'
+      ? `Every production that opened on Broadway since ${FIRST_YEAR}, from Playbill's season lists, with running years taken from the weekly box-office grosses.`
+      : `West End productions since ${FIRST_YEAR}, combined from the theatres' Wikipedia histories and Theatricalia. London has no single complete record, so a few runs may be missing or have slightly off dates.`}
+      Add anything that's missing and it joins the list for every year it ran.</p>`;
 }
 
 function renderTheatres() {
