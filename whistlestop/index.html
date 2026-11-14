@@ -5,105 +5,161 @@
   <title>Whistlestop — the cheapest way there</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Compare flying, trains, buses and ferries from nearby airports and stations, including the cost of getting there and an optional overnight stay." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 22V10l14 6z' fill='white'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230f766e'/%3E%3Cpath d='M10 22.5H15.5a4 4 0 0 0 4-4V13' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='8.6' cy='22.5' r='2.7' fill='white'/%3E%3Ccircle cx='19.5' cy='9.6' r='3.1' fill='none' stroke='white' stroke-width='2.6'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <header class="top">
-    <div class="brand">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M9 22V10l14 6z"/></svg>
+    <a class="brand" href="./" id="home" aria-label="Whistlestop home">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9"/><path d="M10 22.5H15.5a4 4 0 0 0 4-4V13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="8.6" cy="22.5" r="2.7" fill="currentColor"/><circle cx="19.5" cy="9.6" r="3.1" fill="none" stroke="currentColor" stroke-width="2.6"/></svg>
       <span>Whistlestop</span>
-    </div>
-    <p class="tag">The cheapest way there — even if it starts somewhere else.</p>
+    </a>
+    <div class="livepill" id="livepill" hidden><span class="dot"></span>Live prices</div>
   </header>
 
   <main>
-    <form id="form" class="panel" novalidate>
-      <div class="grid2">
-        <label class="field">
-          <span>From</span>
-          <input id="from" type="text" placeholder="City, airport, station or address" autocomplete="off" required />
-        </label>
-        <label class="field">
-          <span>To</span>
-          <input id="to" type="text" placeholder="City, airport, station or address" autocomplete="off" required />
-        </label>
-      </div>
+    <!-- ================= search ================= -->
+    <section id="view-search">
+      <h1 class="hero-title">The cheapest way there<br /><span>even if it starts somewhere else.</span></h1>
 
-      <div class="grid3">
-        <label class="field">
-          <span>Date</span>
-          <input id="date" type="date" required />
-        </label>
-        <label class="field">
-          <span>Travel up to <em>hours to start</em></span>
-          <input id="before" type="number" min="0.25" max="12" step="0.25" value="3" inputmode="decimal" />
-        </label>
-        <label class="field">
-          <span>…and up to <em>hours to finish</em></span>
-          <input id="after" type="number" min="0.25" max="12" step="0.25" value="1.5" inputmode="decimal" />
-        </label>
-      </div>
-      <p class="help">“To start” is how many hours you’re willing to spend <b>travelling</b> from your starting point to reach a departure point (taxi, train, bus, ferry — or a short flight to another city). “To finish” is the same from where you land to your destination. Airports in your starting city and your destination city (JFK, LaGuardia and Newark for New York) are always allowed — the hours are for going <b>beyond</b> them, such as landing in Washington and taking a train. Time spent waiting at airports isn’t counted against these, but it is shown in each trip’s total. The date is the day of the main flight; with an overnight stay, travel before the hotel night happens the day before (and after it, the day after you land).</p>
-
-      <fieldset class="modes">
-        <legend>Acceptable ways to travel</legend>
-        <label class="chip"><input type="checkbox" name="mode" value="air" checked /><span>Flights</span></label>
-        <label class="chip"><input type="checkbox" name="mode" value="rail" checked /><span>Trains</span></label>
-        <label class="chip"><input type="checkbox" name="mode" value="bus" checked /><span>Buses</span></label>
-        <label class="chip"><input type="checkbox" name="mode" value="ferry" checked /><span>Ferries</span></label>
-      </fieldset>
-
-      <label class="field bags">
-        <span>Bags <em>per traveller</em></span>
-        <select id="bags">
-          <option value="personal">Personal item only (cheapest fares)</option>
-          <option value="carryon">1 cabin bag (fares re-priced with it)</option>
-          <option value="checked1">1 checked bag (fees not included — see note)</option>
-          <option value="checked2">2 checked bags (fees not included — see note)</option>
-        </select>
-      </label>
-      <p class="help">Budget airlines charge for anything beyond a small personal item, so the headline fare can be much lower than what you’ll pay. “1 cabin bag” re-prices every flight with the bag included, from live data. Checked-bag fees are <b>not</b> available from the price source, so they are never guessed: trips are flagged instead, and each separate ticket means another fee.</p>
-
-      <div class="toggles">
-        <label class="switch"><input id="overnight" type="checkbox" /><span>I can stay overnight <em>(adds hotel cost for farther options)</em></span></label>
-        <label class="switch"><input id="positioning" type="checkbox" checked /><span>Allow a short flight at the start <em>(e.g. a cheap flight London → Milan, then the long-haul; two separate tickets)</em></span></label>
-        <label class="switch"><input id="positioningEnd" type="checkbox" /><span>Allow a short flight at the end <em>(e.g. land in Boston, fly on to New York; otherwise the last leg is a train, bus or taxi)</em></span></label>
-        <label class="switch"><input id="owncar" type="checkbox" /><span>I’ll drive my own car to departure points</span></label>
-      </div>
-
-      <details class="advanced">
-        <summary>More options</summary>
-        <div class="grid3">
-          <label class="field">
-            <span>My time is worth ($/hour)</span>
-            <input id="value" type="number" min="0" max="500" step="1" value="0" inputmode="decimal" />
+      <form id="form" class="searchcard" novalidate>
+        <div class="route-fields">
+          <label class="fbox">
+            <span class="flabel">From</span>
+            <span class="fline">
+              <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+              <input id="from" type="text" placeholder="City, airport or station" autocomplete="off" required />
+            </span>
           </label>
-          <label class="field">
-            <span>My points are worth (¢ each)</span>
-            <input id="cents" type="number" min="0.1" max="10" step="0.1" value="1.4" inputmode="decimal" />
+          <button type="button" id="swap" class="swap" aria-label="Swap from and to">
+            <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M7 7h12l-3-3M17 17H5l3 3"/></svg>
+          </button>
+          <label class="fbox">
+            <span class="flabel">To</span>
+            <span class="fline">
+              <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z"/><circle cx="12" cy="11" r="2"/></svg>
+              <input id="to" type="text" placeholder="City, airport or station" autocomplete="off" required />
+            </span>
           </label>
-          <label class="field">
-            <span>Rank by</span>
-            <select id="rank">
-              <option value="cash">Cash price</option>
-              <option value="points">Cost if I pay flights with points</option>
-            </select>
+          <label class="fbox datebox">
+            <span class="flabel">Date</span>
+            <span class="fline">
+              <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+              <input id="date" type="date" required />
+            </span>
           </label>
         </div>
-      </details>
 
-      <button id="go" type="submit" class="primary">Find my whistlestop</button>
-      <p class="help cost">Every search checks <b>every</b> reachable airport and every hub with a real fare, so it uses roughly 10–20 live searches.</p>
-    </form>
+        <div class="opts-row">
+          <div class="stepper">
+            <div>
+              <div class="flabel" id="beforeLabel">Hours to start</div>
+              <output class="sval" id="beforeOut" aria-labelledby="beforeLabel"></output>
+              <input id="before" type="hidden" value="3" />
+            </div>
+            <div class="sbtns">
+              <button type="button" data-step="before" data-dir="-1" aria-label="Fewer hours to start"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+              <button type="button" data-step="before" data-dir="1" aria-label="More hours to start"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+            </div>
+          </div>
+          <div class="stepper">
+            <div>
+              <div class="flabel" id="afterLabel">Hours to finish</div>
+              <output class="sval" id="afterOut" aria-labelledby="afterLabel"></output>
+              <input id="after" type="hidden" value="1.5" />
+            </div>
+            <div class="sbtns">
+              <button type="button" data-step="after" data-dir="-1" aria-label="Fewer hours to finish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+              <button type="button" data-step="after" data-dir="1" aria-label="More hours to finish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+            </div>
+          </div>
+          <div class="modes" role="group" aria-label="Ways to travel">
+            <label class="mode"><input type="checkbox" name="mode" value="air" checked /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>Flights</span></label>
+            <label class="mode"><input type="checkbox" name="mode" value="rail" checked /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M8 20l2-3M16 20l-2-3"/></svg>Trains</span></label>
+            <label class="mode"><input type="checkbox" name="mode" value="bus" checked /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4" y="4" width="16" height="13" rx="2"/><path d="M4 11h16M7 20v-3M17 20v-3"/></svg>Buses</span></label>
+            <label class="mode"><input type="checkbox" name="mode" value="ferry" checked /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M3 17c2 1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0M5 14l1-6h12l1 6M12 8V4"/></svg>Ferries</span></label>
+          </div>
+        </div>
 
-    <div id="status" role="status" aria-live="polite"></div>
-    <div id="notice"></div>
-    <section id="results"></section>
+        <div class="go-row">
+          <button type="button" id="open-prefs" class="prefs-btn">
+            <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+            Preferences
+            <span class="count" id="prefcount" hidden></span>
+          </button>
+          <div class="go-right">
+            <span class="cost" id="costnote">About 13 live searches</span>
+            <button id="go" type="submit" class="primary">Find my whistlestop
+              <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="status" role="status" aria-live="polite"></div>
+      </form>
+
+      <div id="recent" class="recent" hidden></div>
+    </section>
+
+    <!-- ================= results ================= -->
+    <section id="view-results" hidden>
+      <div id="summary" class="summary"></div>
+      <div id="notice"></div>
+      <div id="results"></div>
+    </section>
+
+    <!-- ================= trip detail ================= -->
+    <section id="view-trip" hidden></section>
   </main>
 
+  <!-- ================= preferences ================= -->
+  <dialog id="prefs" class="sheet" aria-labelledby="prefs-title">
+    <div class="sheet-head">
+      <h2 id="prefs-title">Preferences</h2>
+      <button type="button" id="close-prefs" class="roundbtn" aria-label="Close preferences"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <fieldset class="group">
+        <legend>Bags</legend>
+        <div class="bagopts">
+          <label class="bagopt"><input type="radio" name="bags" value="personal" checked /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="7" y="10" width="10" height="10" rx="2"/><path d="M10 10V8a2 2 0 0 1 4 0v2"/></svg>Personal item</span></label>
+          <label class="bagopt"><input type="radio" name="bags" value="carryon" /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="5" y="8" width="14" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Cabin bag</span></label>
+          <label class="bagopt"><input type="radio" name="bags" value="checked1" /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="5" y="6" width="14" height="14" rx="3"/><path d="M9 6V4h6v2M9 10v6M15 10v6"/></svg>1 checked</span></label>
+          <label class="bagopt"><input type="radio" name="bags" value="checked2" /><span><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="3" y="7" width="11" height="13" rx="2.5"/><path d="M6.5 7V5h4v2M17 9h1.5A2.5 2.5 0 0 1 21 11.5v6a2.5 2.5 0 0 1-2.5 2.5H17"/></svg>2 checked</span></label>
+        </div>
+        <p class="note">Checked-bag fees aren’t in these prices, and each separate ticket adds one. Bag changes apply to your next search.</p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Trip</legend>
+        <label class="switchrow"><span><b>I can stay overnight</b></span><input id="overnight" type="checkbox" role="switch" /><i class="track"></i></label>
+        <label class="switchrow"><span><b>Short flight at the start</b><small>London → Milan, then the long-haul</small></span><input id="positioning" type="checkbox" role="switch" checked /><i class="track"></i></label>
+        <label class="switchrow"><span><b>Short flight at the end</b><small>Land in Boston, fly on to New York</small></span><input id="positioningEnd" type="checkbox" role="switch" /><i class="track"></i></label>
+        <label class="switchrow"><span><b>I’ll drive to departure points</b></span><input id="owncar" type="checkbox" role="switch" /><i class="track"></i></label>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Ranking</legend>
+        <div class="rank-grid">
+          <label class="fbox small"><span class="flabel">My time is worth ($ per hour)</span><input id="value" type="number" min="0" max="500" step="1" value="0" inputmode="decimal" /></label>
+          <label class="fbox small"><span class="flabel">My points are worth (¢ each)</span><input id="cents" type="number" min="0.1" max="10" step="0.1" value="1.4" inputmode="decimal" /></label>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Rank by">
+          <label><input type="radio" name="rank" value="cash" checked /><span>Cash price</span></label>
+          <label><input type="radio" name="rank" value="points" /><span>Paying with points</span></label>
+        </div>
+      </fieldset>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" id="reset-prefs" class="textbtn">Reset</button>
+      <button type="button" id="apply-prefs" class="primary small">Apply</button>
+    </div>
+  </dialog>
+
   <footer>
-    <p><strong>How accurate is this?</strong> Flights are shown only when they have a real Google Flights quote (marked <span class="badge live">LIVE</span>, with airline and flight number); if live prices can't be fetched, no flights are shown. Prices marked <span class="badge est">EST</span> — taxis, trains, buses, ferries and hotels without a live rate — are estimates, because there is no real-time source for them. Train, bus and ferry timetables aren’t checked, and “set off by” times only appear when real flight times are available. “Find this flight” opens that day’s results for the exact route and airline; pick the flight number shown. Always confirm before booking. Flights cover airports worldwide; train, bus and ferry coverage is currently limited to the UK, Western Europe and the US north-east, Chicago and California. Airport data: <a href="https://ourairports.com/data/" target="_blank" rel="noopener noreferrer">OurAirports</a> (public domain).</p>
+    <p><strong>How accurate is this?</strong> Flights are shown only when they have a real Google Flights quote (marked <span class="badge live">LIVE</span>, with airline and flight number); if live prices can’t be fetched, no flights are shown. Prices marked <span class="badge est">EST</span> — taxis, trains, buses, ferries and hotels without a live rate — are estimates, because there is no real-time source for them. Train, bus and ferry timetables aren’t checked, and “set off by” times only appear when real flight times are available. “Find this flight” opens that day’s results for the exact route and airline; pick the flight number shown. Always confirm before booking. Flights cover airports worldwide; train, bus and ferry coverage is currently limited to the UK, Western Europe and the US north-east, Chicago and California. Airport data: <a href="https://ourairports.com/data/" target="_blank" rel="noopener noreferrer">OurAirports</a> (public domain).</p>
   </footer>
 
   <script type="module" src="js/app.js"></script>
