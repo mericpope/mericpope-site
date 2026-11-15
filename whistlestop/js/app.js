@@ -146,7 +146,7 @@ function updatePrefsUi() {
   document.querySelectorAll('input[name="triptype"]').forEach((r) => { r.disabled = split && r.value === "round"; });
   syncReturn();
   // a group search = the far traveller (with a stopover) + each local traveller alone + the meeting trip
-  els.costnote.textContent = split ? `About ${oneWay + 9} live searches (two starting places)` : `About ${p.round ? oneWay * 2 : oneWay} live searches${p.round ? " (both ways)" : ""}`;
+  els.costnote.textContent = split ? `About ${oneWay + 30} live searches (two starting places)` : `About ${p.round ? oneWay * 2 : oneWay} live searches${p.round ? " (both ways)" : ""}`;
 }
 
 function saveForm() {
@@ -750,12 +750,20 @@ async function liveHotel(hub, checkIn, checkOut) {
 // are never cached, so a retry really retries.
 const LOOKUPS = new Map();
 const LOOKUP_TTL_MS = 30 * 60 * 1000;
+// A lookup already on its way is shared, not repeated: two overlapping searches (a double click, Enter then
+// click) must never pay for the same live search twice.
+const INFLIGHT = new Map();
 async function cached(key, fetcher) {
   const hit = LOOKUPS.get(key);
   if (hit && Date.now() - hit.at < LOOKUP_TTL_MS) return hit.value;
-  const value = await fetcher();
-  if (value !== null && value !== undefined) LOOKUPS.set(key, { at: Date.now(), value });
-  return value;
+  if (INFLIGHT.has(key)) return INFLIGHT.get(key);
+  const pending = (async () => {
+    const value = await fetcher();
+    if (value !== null && value !== undefined) LOOKUPS.set(key, { at: Date.now(), value });
+    return value;
+  })().finally(() => INFLIGHT.delete(key));
+  INFLIGHT.set(key, pending);
+  return pending;
 }
 
 function queryFromForm() {
@@ -885,6 +893,7 @@ async function runSearch() {
 
 els.form.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (els.go.disabled) return; // a search is already running: never start a second one
   if (!els.from.value.trim() || !els.to.value.trim()) return setStatus("Enter both a starting point and a destination.", true);
   if (!els.date.value) return setStatus("Pick a travel date.", true);
   if (radio("triptype") === "round" && (!els.rdate.value || els.rdate.value < els.date.value)) return setStatus("Pick a return date on or after your outbound date.", true);
