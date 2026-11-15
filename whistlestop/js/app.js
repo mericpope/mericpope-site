@@ -1,4 +1,4 @@
-import { search } from "./engine.js";
+import { search, searchRoundTrip, returnLeg } from "./engine.js";
 import { HUBS, LINKS } from "./data/hubs.js";
 import { suggest } from "./places.js";
 import { attachCombobox } from "./combobox.js";
@@ -9,9 +9,10 @@ import { haversineKm } from "./geo.js";
 const $ = (id) => document.getElementById(id);
 const els = {
   form: $("form"), from: $("from"), to: $("to"), date: $("date"), before: $("before"), after: $("after"),
-  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), owncar: $("owncar"),
+  overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), stopoverHours: $("stopoverHours"), stopoverWrap: $("stopoverHoursWrap"), owncar: $("owncar"),
   value: $("value"), cents: $("cents"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"), summary: $("summary"), recent: $("recent"),
+  rdate: $("rdate"), returnBox: $("returnBox"), roundbar: $("roundbar"),
   prefs: $("prefs"), prefcount: $("prefcount"), costnote: $("costnote"), livepill: $("livepill"),
   vSearch: $("view-search"), vResults: $("view-results"), vTrip: $("view-trip"),
 };
@@ -101,17 +102,32 @@ document.addEventListener("click", (e) => {
 
 function prefState() {
   return {
-    bags: radio("bags") || "personal", overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked,
+    bags: radio("bags") || "personal", overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, stopoverHours: els.stopoverHours.value,
     owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value, rank: radio("rank") || "cash",
+    round: radio("triptype") === "round", rdate: els.rdate.value,
   };
+}
+
+const addDaysIso = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+// The return date: shown for round trips, never before the outbound date.
+function syncReturn() {
+  const round = radio("triptype") === "round";
+  els.returnBox.hidden = !round;
+  els.rdate.min = els.date.value || els.date.min;
+  if (round && els.date.value && (!els.rdate.value || els.rdate.value < els.date.value)) els.rdate.value = addDaysIso(els.date.value, 7);
 }
 
 function updatePrefsUi() {
   const p = prefState();
-  const n = [p.bags !== "personal", p.overnight, !p.positioning, p.positioningEnd, p.owncar, +p.value > 0, p.rank === "points"].filter(Boolean).length;
+  const n = [p.bags !== "personal", p.overnight, !p.positioning, p.owncar, +p.value > 0, p.rank === "points"].filter(Boolean).length;
   els.prefcount.textContent = n;
   els.prefcount.hidden = n === 0;
-  els.costnote.textContent = `About ${p.overnight ? 20 : 13} live searches`;
+  els.stopoverWrap.hidden = !p.positioningEnd;
+  // a stopover prices the second flight from every hub with a real fare: about 3 more searches (6 with a night)
+  const oneWay = (p.overnight ? 20 : 13) + (p.positioningEnd ? (p.overnight ? 6 : 3) : 0);
+  syncReturn();
+  els.costnote.textContent = `About ${p.round ? oneWay * 2 : oneWay} live searches${p.round ? " (both ways)" : ""}`;
 }
 
 function saveForm() {
@@ -137,7 +153,10 @@ function restoreForm() {
     if (s.fromPlace) fromBox.setPlace(s.fromPlace);
     if (s.toPlace) toBox.setPlace(s.toPlace);
     if (s.date && s.date >= els.date.min) els.date.value = s.date;
+    setRadio("triptype", s.round ? "round" : "one");
+    if (s.rdate && s.rdate >= els.date.value) els.rdate.value = s.rdate;
     els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.positioningEnd.checked = s.positioningEnd === true; els.owncar.checked = !!s.owncar;
+    if ([...els.stopoverHours.options].some((o) => o.value === String(s.stopoverHours))) els.stopoverHours.value = String(s.stopoverHours);
     els.value.value = s.value ?? 0; els.cents.value = s.cents ?? 1.4;
     setRadio("rank", s.rank === "points" ? "points" : "cash");
     setRadio("bags", BAG_VALUES.includes(s.bags) ? s.bags : "personal");
@@ -166,7 +185,8 @@ $("swap").addEventListener("click", () => {
 function loadRecent() { try { return JSON.parse(localStorage.getItem(RECENT) || "[]"); } catch { return []; } }
 function saveRecent() {
   if (!places) return;
-  const entry = { from: els.from.value, to: els.to.value, date: els.date.value, fromPlace: fromBox.place, toPlace: toBox.place };
+  const round = radio("triptype") === "round";
+  const entry = { from: els.from.value, to: els.to.value, date: els.date.value, round, rdate: round ? els.rdate.value : "", fromPlace: fromBox.place, toPlace: toBox.place };
   const list = [entry, ...loadRecent().filter((r) => !(r.from === entry.from && r.to === entry.to))].slice(0, 4);
   try { localStorage.setItem(RECENT, JSON.stringify(list)); } catch { /* optional */ }
   renderRecent();
@@ -187,6 +207,9 @@ els.recent.addEventListener("click", (e) => {
   if (r.fromPlace) fromBox.setPlace(r.fromPlace);
   if (r.toPlace) toBox.setPlace(r.toPlace);
   if (r.date && r.date >= els.date.min) els.date.value = r.date;
+  setRadio("triptype", r.round ? "round" : "one");
+  if (r.round && r.rdate && r.rdate >= els.date.value) els.rdate.value = r.rdate;
+  syncReturn();
   els.form.requestSubmit();
 });
 
@@ -217,7 +240,7 @@ function flightsLine(it) {
 // Leaving from somewhere other than your own city (a train to Paris, say), as opposed to the airport train.
 function awayFromHome(it) {
   const hub = it.pre?.pos?.from || it.jumpOff;
-  return !!hub && Number.isFinite(hub.lat) && haversineKm(places.origin, hub) > 60;
+  return !!hub && Number.isFinite(hub.lat) && haversineKm(view.query.origin, hub) > 60;
 }
 function transitTag(it) {
   const first = it.legs.find((l) => ["rail", "bus", "ferry"].includes(l.kind));
@@ -247,11 +270,11 @@ function noticeHtml(res) {
 }
 
 // ---------- results: summary bar ----------
-function summaryHtml(q) {
-  const dest = shortName(places.destination);
+function summaryHtml(q, returnDate = "") {
+  const dest = shortName(q.destination);
   return `<div class="facts">
-      <b>${esc(shortName(places.origin))} → ${esc(dest)}</b><span class="sep"></span>
-      <span>${esc(dayLabel(q.date))}</span><span class="sep"></span>
+      <b>${esc(shortName(q.origin))} ${returnDate ? "⇄" : "→"} ${esc(dest)}</b><span class="sep"></span>
+      <span>${esc(dayLabel(q.date))}${returnDate ? ` – ${esc(dayLabel(returnDate))}` : ""}</span><span class="sep"></span>
       <span>${hoursText(q.beforeHours)} to start · ${hoursText(q.afterHours)} to finish</span><span class="sep"></span>
       <span>${esc(BAG_LABEL[q.bags])}</span>
     </div>
@@ -293,13 +316,13 @@ function routeGraphHtml(it) {
   const t = it.times || {};
   const connect = it.separateTickets ? waitBetweenFlights(it) : 0;
   // nodes
-  const nodes = [{ label: shortName(places.origin), sub: t.leaveBy ? timeOf(t.leaveBy) : "" }];
+  const nodes = [{ label: shortName(view.query.origin), sub: t.leaveBy ? timeOf(t.leaveBy) : "" }];
   segs.forEach((s, i) => {
     const next = segs[i + 1];
     let label;
     let sub = "";
     if (i === segs.length - 1) {
-      label = shortName(places.destination);
+      label = shortName(view.query.destination);
       sub = t.arriveAt ? timeOf(t.arriveAt) : "";
     } else if (s.type === "flight") {
       label = s.leg.toCode;
@@ -498,8 +521,8 @@ function renderResults() {
     <aside class="sidecol">${chartHtml()}${leavingHtml()}</aside></div>`;
 }
 
-function render(res, query) {
-  els.summary.innerHTML = summaryHtml(query);
+function render(res, query, { summary = true } = {}) {
+  if (summary) els.summary.innerHTML = summaryHtml(query);
   view = { res, query, items: [], filter: "all", sort: +query.valuePerHour > 0 ? "score" : "price", showAll: false, trip: null };
   // Real data only: with flights selected, nothing is shown unless live prices came back.
   if (res.input.modes.has("air") && !res.live?.active) {
@@ -617,7 +640,7 @@ function tripHtml(it, res, query) {
     : `<section class="tcmp"><div><span>Compared with going direct</span><b class="${cmp.diff >= 0.5 ? "good" : ""}">${cmp.diff >= 0.5 ? `Saves ${money(cmp.diff)}` : cmp.diff <= -0.5 ? `Costs ${money(-cmp.diff)} more` : "Same price"}</b></div><div><span>${cmp.dt >= 0 ? "Extra time" : "Time saved"}</span><b>${dur(Math.abs(cmp.dt))}</b></div></section>`;
 
   return `<button type="button" class="backlink" data-back>${I.back}All options</button>
-    <div class="triphead"><h1>${esc(routeTitle(it))}</h1><span>${esc(dayLabel(query.date))} · ${esc(shortName(places.origin))} to ${esc(shortName(places.destination))}</span></div>
+    <div class="triphead"><h1>${esc(routeTitle(it))}</h1><span>${esc(dayLabel(query.date))} · ${esc(shortName(query.origin))} to ${esc(shortName(query.destination))}</span></div>
     <div class="layout" style="margin-top:0">
       <div class="maincol tl" style="gap:0">${items}</div>
       <aside class="tripside">
@@ -696,23 +719,67 @@ async function cached(key, fetcher) {
 function queryFromForm() {
   const p = prefState();
   return {
-    origin: places.origin, destination: places.destination, date: els.date.value,
+    origin: places.origin, destination: places.destination, date: els.date.value, returnDate: p.round ? els.rdate.value : "",
     beforeHours: els.before.value, afterHours: els.after.value, modes: modes(),
-    overnight: p.overnight, positioning: p.positioning, positioningEnd: p.positioningEnd, ownCar: p.owncar,
+    overnight: p.overnight, positioning: p.positioning, stopover: p.positioningEnd, stopoverHours: p.stopoverHours, ownCar: p.owncar,
     valuePerHour: p.value, pointsCents: p.cents, rankBy: p.rank, bags: p.bags,
   };
 }
 
+// ---------- round trips: out and back as two tabs under one total ----------
+let round = null; // { rt, query, active: "out" | "back" }
+
+function roundBarHtml() {
+  const { rt, query } = round;
+  const o = rt.out.best, b = rt.back?.best;
+  const name = (p) => shortName(p);
+  const leg = (key, title, date, from, to, it) => `<button type="button" role="tab" data-leg="${key}" aria-selected="${round.active === key}">
+      <b>${title} · ${esc(dayLabel(date))}</b><span>${esc(name(from))} → ${esc(name(to))} · ${it ? money(it.totalCost) : "no route found"}</span></button>`;
+  const total = rt.total === null ? "" : `<div class="roundtotal">
+      <div><span class="lbl">Round trip total</span><span class="big">${money(rt.total)}</span></div>
+      <div class="sum">Out ${money(o.totalCost)} + back ${money(b.totalCost)}${rt.savings > 0 ? ` · <span class="save">saves ${money(rt.savings)}</span> vs going direct both ways` : ""}</div>
+    </div>
+    <p class="note">Priced as two one-way tickets, each with its own real quote. Some airlines sell a round trip for less than two one-ways; Whistlestop can’t see those fares yet.</p>`;
+  const tabs = rt.back ? `<div class="legtabs" role="tablist" aria-label="Outbound or return">
+      ${leg("out", "Outbound", query.date, query.origin, query.destination, o)}${leg("back", "Return", rt.returnDate, query.destination, query.origin, b)}</div>` : "";
+  return total + tabs;
+}
+
+function renderRound() {
+  const { rt, query } = round;
+  els.summary.innerHTML = summaryHtml(query, rt.returnDate);
+  els.roundbar.innerHTML = `<div class="roundbar">${roundBarHtml()}</div>`;
+  if (round.active === "back" && rt.back) render(rt.back, returnLeg(query), { summary: false });
+  else render(rt.out, query, { summary: false });
+  if (!rt.back) els.notice.insertAdjacentHTML("beforeend", `<div class="notice"><b>The return trip wasn’t searched.</b> There were no real prices for the way out, so searching the way back would only spend more of the daily limit.</div>`);
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-leg]");
+  if (!t || !round) return;
+  round.active = t.dataset.leg;
+  renderRound();
+});
+
 async function runSearch() {
   const query = queryFromForm();
-  const res = await search(query, DATA, LIVE_PROVIDER_URL ? { livePrices, liveHotel } : {});
-  render(res, query);
+  const deps = LIVE_PROVIDER_URL ? { livePrices, liveHotel } : {};
+  if (query.returnDate) {
+    const rt = await searchRoundTrip(query, DATA, deps);
+    round = { rt, query, active: round?.active === "back" && rt.back ? "back" : "out" };
+    renderRound();
+    return;
+  }
+  round = null;
+  els.roundbar.innerHTML = "";
+  render(await search(query, DATA, deps), query);
 }
 
 els.form.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!els.from.value.trim() || !els.to.value.trim()) return setStatus("Enter both a starting point and a destination.", true);
   if (!els.date.value) return setStatus("Pick a travel date.", true);
+  if (radio("triptype") === "round" && (!els.rdate.value || els.rdate.value < els.date.value)) return setStatus("Pick a return date on or after your outbound date.", true);
   if (!modes().length) return setStatus("Choose at least one way to travel.", true);
 
   els.go.disabled = true;
@@ -722,7 +789,7 @@ els.form.addEventListener("submit", async (e) => {
     const origin = toPoint(await fromBox.resolve());
     const destination = toPoint(await toBox.resolve());
     places = { origin, destination };
-    setStatus("Checking every reachable airport — this can take a moment…");
+    setStatus(radio("triptype") === "round" ? "Checking every reachable airport, both ways — this can take a moment…" : "Checking every reachable airport — this can take a moment…");
     await runSearch();
     setStatus("");
     saveRecent();
@@ -741,7 +808,7 @@ $("apply-prefs").addEventListener("click", () => els.prefs.close());
 els.prefs.addEventListener("click", (e) => { if (e.target === els.prefs) els.prefs.close(); });
 $("reset-prefs").addEventListener("click", () => {
   setRadio("bags", "personal"); setRadio("rank", "cash");
-  els.overnight.checked = false; els.positioning.checked = true; els.positioningEnd.checked = false; els.owncar.checked = false;
+  els.overnight.checked = false; els.positioning.checked = true; els.owncar.checked = false;
   els.value.value = 0; els.cents.value = 1.4;
   saveForm();
 });

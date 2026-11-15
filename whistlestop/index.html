@@ -53,6 +53,20 @@
           </label>
         </div>
 
+        <div class="trip-row">
+          <div class="tt" role="radiogroup" aria-label="Trip type">
+            <label><input type="radio" name="triptype" value="one" checked /><span>One way</span></label>
+            <label><input type="radio" name="triptype" value="round" /><span>Round trip</span></label>
+          </div>
+          <label class="fbox datebox" id="returnBox" hidden>
+            <span class="flabel">Return</span>
+            <span class="fline">
+              <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+              <input id="rdate" type="date" />
+            </span>
+          </label>
+        </div>
+
         <div class="opts-row">
           <div class="stepper">
             <div>
@@ -84,6 +98,22 @@
           </div>
         </div>
 
+        <div class="stopover-row">
+          <label class="switchrow">
+            <span><b>Check a stopover</b><small>Fly to a hub first (say London), then on to your destination, as two tickets. Priced against flying direct.</small></span>
+            <input id="positioningEnd" type="checkbox" role="switch" /><i class="track"></i>
+          </label>
+          <label class="stop-hours" id="stopoverHoursWrap" hidden>
+            <span>Second flight up to</span>
+            <select id="stopoverHours" aria-label="Longest second flight">
+              <option value="2">2 hours</option>
+              <option value="3">3 hours</option>
+              <option value="4" selected>4 hours</option>
+              <option value="6">6 hours</option>
+            </select>
+          </label>
+        </div>
+
         <div class="go-row">
           <button type="button" id="open-prefs" class="prefs-btn">
             <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
@@ -106,6 +136,7 @@
     <!-- ================= results ================= -->
     <section id="view-results" hidden>
       <div id="summary" class="summary"></div>
+      <div id="roundbar"></div>
       <div id="notice"></div>
       <div id="results"></div>
     </section>
@@ -136,7 +167,6 @@
         <legend>Trip</legend>
         <label class="switchrow"><span><b>I can stay overnight</b></span><input id="overnight" type="checkbox" role="switch" /><i class="track"></i></label>
         <label class="switchrow"><span><b>Short flight at the start</b><small>London → Milan, then the long-haul</small></span><input id="positioning" type="checkbox" role="switch" checked /><i class="track"></i></label>
-        <label class="switchrow"><span><b>Short flight at the end</b><small>Land in Boston, fly on to New York</small></span><input id="positioningEnd" type="checkbox" role="switch" /><i class="track"></i></label>
         <label class="switchrow"><span><b>I’ll drive to departure points</b></span><input id="owncar" type="checkbox" role="switch" /><i class="track"></i></label>
       </fieldset>
 

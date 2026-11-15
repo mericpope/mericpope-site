@@ -62,7 +62,12 @@ export function normalize(input) {
     afterHours: clamp(input.afterHours, 0.25, 12, 1.5),
     modes: new Set((input.modes || MODES).filter((m) => MODES.includes(m))),
     positioning: input.positioning !== false, // a short flight BEFORE the long one (on unless switched off)
-    positioningEnd: input.positioningEnd === true, // a short flight AFTER it: opt-in, otherwise a train/bus/taxi covers the last leg
+    // A STOPOVER: the long flight lands at a hub (e.g. London), then a second flight (separate
+    // ticket) goes on to the destination. Opt-in, otherwise a train/bus/taxi covers the last leg.
+    // (`positioningEnd` is the older name for the same switch.)
+    positioningEnd: input.stopover === true || input.positioningEnd === true,
+    stopoverHours: clamp(input.stopoverHours, 1, 8, 4), // longest second flight to consider
+    stopoverSide: input.stopoverSide === "start" ? "start" : "end", // "start" on a return trip: the hop is the FIRST flight
     overnight: !!input.overnight,
     ownCar: !!input.ownCar,
     valuePerHour: clamp(input.valuePerHour, 0, 500, 0),
@@ -99,6 +104,7 @@ function buildContext(data, opts) {
     transitModes: ["rail", "bus", "ferry"].filter((m) => opts.modes.has(m)),
     positioning: opts.positioning && opts.modes.has("air"),
     positioningEnd: opts.positioningEnd && opts.modes.has("air"),
+    overnight: opts.overnight,
     date: opts.date,
     ownCar: opts.ownCar,
     value: opts.valuePerHour,
@@ -287,7 +293,7 @@ function transferLeg(a, b) {
 // All the ways to get from a point to an airport within `windowMin` minutes of
 // travelling: taxi; rides (up to MAX_RIDES) with changes; and - the key idea - ONE
 // short flight to another hub.
-function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop) {
+function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop, hopMin = 0) {
   const best = new Map();
   const groundCache = new Map();
   const ground = (from, to) => {
@@ -370,6 +376,13 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop) {
   // gateway A2 (e.g. a budget airline to Milan), and the long flight leaves from A2.
   // The flight time counts toward your X hours; waiting around does not.
   if (allowHop) {
+    // A STOPOVER (end side only) brings its own allowance for the second flight, so the
+    // "hours to finish" limit does not rule out e.g. London -> Venice (2h): the flight is a
+    // leg of the trip, not the last mile. A same-day connection needs no hotel; with
+    // "overnight" on we also offer the same hop after a night in the stopover city.
+    const stopover = hopMin > 0;
+    const flightWindow = stopover ? Math.max(windowMin, hopMin) : windowMin;
+    const sameDayMin = stopover ? Math.max(noHotelMin, hopMin) : noHotelMin;
     const starts = [...best.values()]
       .filter((c) => !c.needsHotel && !c.pos)
       .sort((a, b) => a.minutes - b.minutes)
@@ -380,8 +393,9 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop) {
       for (const A2 of gatewaysNear(ctx, A1)) {
         if (A2.id === A1.id) continue;
         const est = estimate(ctx, A1, A2);
-        if (!est || C0.minutes + est.minutes > windowMin) continue;
-        hops.push(makeChain(C0.base, A2, "flight", ctx, noHotelMin, { from: A1, to: A2, est }));
+        if (!est || C0.minutes + est.minutes > flightWindow) continue;
+        hops.push(makeChain(C0.base, A2, "flight", ctx, sameDayMin, { from: A1, to: A2, est }));
+        if (stopover && ctx.overnight) hops.push(makeChain(C0.base, A2, "flight", ctx, 0, { from: A1, to: A2, est }));
       }
     }
     for (const c of capHopped(hops)) keepBest(best, c);
@@ -553,8 +567,11 @@ export async function search(rawInput, data, deps = {}) {
   const itineraries = [];
 
   if (opts.modes.has("air")) {
-    const pres = chainsToAirports(origin, preWindow, beforeMin, ctx, ctx.positioning);
-    const posts = chainsToAirports(destination, postWindow, afterMin, ctx, ctx.positioningEnd);
+    // A stopover brings its own allowance for the second flight: at the END of an outbound trip,
+    // at the START of a return trip (see returnLeg).
+    const stopMin = opts.stopoverHours * 60;
+    const pres = chainsToAirports(origin, preWindow, beforeMin, ctx, ctx.positioning, opts.stopoverSide === "start" ? stopMin : 0);
+    const posts = chainsToAirports(destination, postWindow, afterMin, ctx, ctx.positioningEnd, opts.stopoverSide === "start" ? 0 : stopMin);
     for (const pre of pres) {
       for (const post of posts) {
         if (pre.end.id === post.end.id) continue;
@@ -633,6 +650,55 @@ export async function search(rawInput, data, deps = {}) {
       hubsNearDestination: countHubs(destination, postWindow, opts, ctx),
     },
     warnings,
+  };
+}
+
+// ---- round trips ---------------------------------------------------------------------------
+// A round trip is two one-way searches: out on `date`, back on `returnDate`. Each way is free to use
+// different airports (fly out of Stansted, come home into Heathrow), which is the whole point of
+// Whistlestop. Because the two ways are priced independently, the cheapest round trip is simply the
+// cheapest way out plus the cheapest way back.
+//
+// The return trip is the mirror image of the outbound one:
+//  - you start at the destination, so the "hours to finish" limit becomes the "hours to start";
+//  - a STOPOVER (land in London, hop on to Venice) is mirrored: hop to London first, then fly home;
+//  - a short flight at the start of the outbound trip becomes a short flight at the end of the return.
+export function returnLeg(raw) {
+  const o = normalize(raw);
+  return {
+    ...raw,
+    origin: o.destination,
+    destination: o.origin,
+    date: raw.returnDate,
+    beforeHours: o.afterHours,
+    afterHours: o.beforeHours,
+    positioning: o.positioningEnd, // stopover out => hop first on the way back
+    positioningEnd: o.positioning, // short flight at the start out => short flight at the end back
+    stopover: false,
+    stopoverSide: "start",
+  };
+}
+
+export async function searchRoundTrip(raw, data, deps = {}) {
+  const returnDate = raw.returnDate || "";
+  if (!returnDate) throw new Error("A round trip needs a return date.");
+  if (raw.date && returnDate < raw.date) throw new Error("The return date can't be before the outbound date.");
+  const out = await search(raw, data, deps);
+  // With live prices on but none returned for the way out (daily limit, outage) there is nothing to
+  // combine, so don't spend a second set of paid searches finding out the same thing.
+  const skipBack = !!deps.livePrices && !out.live?.active;
+  const back = skipBack ? null : await search(returnLeg(raw), data, deps);
+  const sum = (a, b) => (a && b ? round2(a.totalCost + b.totalCost) : null);
+  const total = sum(out.best, back?.best);
+  const directTotal = sum(out.baseline, back?.baseline);
+  return {
+    out,
+    back,
+    returnDate,
+    total,
+    directTotal,
+    savings: total !== null && directTotal !== null ? round2(directTotal - total) : null,
+    minutes: out.best && back?.best ? out.best.travelMinutes + back.best.travelMinutes : null,
   };
 }
 
