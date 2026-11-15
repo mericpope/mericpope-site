@@ -688,7 +688,13 @@ async function livePrices(pairs, date, info = {}) {
     pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
   return cached(`/flight?${qs}`, async () => {
-    const res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
+    let res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
+    // A bare 500 ("internal error") is the proxy tripping over its own daily counter when several
+    // lookups arrive in the same second; it happens before any paid search, so retrying once is free.
+    if (res.status === 500) {
+      await new Promise((r) => setTimeout(r, 1500));
+      res = await fetch(`${LIVE_PROVIDER_URL}/flight?${qs}`);
+    }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
     return body.results || [];
