@@ -58,6 +58,13 @@
             <label><input type="radio" name="triptype" value="one" checked /><span>One way</span></label>
             <label><input type="radio" name="triptype" value="round" /><span>Round trip</span></label>
           </div>
+          <label class="fbox tcount">
+            <span class="flabel">Travellers</span>
+            <select id="travellers" aria-label="Number of travellers">
+              <option value="1">1 traveller</option><option value="2">2 travellers</option><option value="3">3 travellers</option>
+              <option value="4">4 travellers</option><option value="5">5 travellers</option><option value="6">6 travellers</option>
+            </select>
+          </label>
           <label class="fbox datebox" id="returnBox" hidden>
             <span class="flabel">Return</span>
             <span class="fline">
@@ -103,6 +110,10 @@
             <span><b>Check a stopover</b><small>Fly to a hub first (say London), then on to your destination, as two tickets, even from another airport a coach ride away (Heathrow → Stansted). An evening landing can’t connect the same day: tick “I can stay overnight” in Preferences to allow a night there.</small></span>
             <input id="positioningEnd" type="checkbox" role="switch" /><i class="track"></i>
           </label>
+          <div class="stop-stay" id="stayWrap" hidden>
+            <span class="flabel">Somewhere you can sleep for free (optional)</span>
+            <div class="fbox small"><span class="fline"><input id="stay" type="text" placeholder="e.g. London - no hotel cost there" autocomplete="off" /></span></div>
+          </div>
           <label class="stop-hours" id="stopoverHoursWrap" hidden>
             <span>Second flight up to</span>
             <select id="stopoverHours" aria-label="Longest second flight">

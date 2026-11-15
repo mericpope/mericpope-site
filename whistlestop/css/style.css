@@ -101,6 +101,11 @@ svg { display: block; }
 .tt input:checked + span { background: var(--ink); color: var(--bg); }
 .tt input:focus-visible + span { outline: 2px solid var(--brand); outline-offset: 2px; }
 #returnBox { width: 210px; max-width: 100%; }
+.tcount { width: 170px; max-width: 100%; padding-top: 8px; padding-bottom: 8px; }
+.tcount select { width: 100%; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 1.05rem; font-weight: 500; padding: 0; outline: none; cursor: pointer; }
+.stop-stay { padding: 0 0 12px; }
+.stop-stay[hidden] { display: none; }
+.stop-stay .flabel { margin-bottom: 6px; }
 #returnBox[hidden] { display: none; }
 .roundbar { margin-top: 12px; }
 .roundtotal { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px 20px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; box-shadow: var(--shadow); }

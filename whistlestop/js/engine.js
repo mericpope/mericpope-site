@@ -33,6 +33,7 @@ export const LOCAL_MINUTES = 90;
 
 const MAX_RIDES = 3;
 const TRANSFER_KM = 15; // two stations this close count as "a change in the same city"
+const FREE_STAY_KM = 70; // a night this close to your free place (London + Heathrow/Gatwick/Stansted) is free
 const XFER_KM = 100; // a stopover's second flight may leave from another airport this close to where you land (LHR -> STN/LTN/LGW)
 const XFER_MAX = 4; // at most this many alternative airports per landing airport
 const MAX_POSITIONING_KM = 3000; // a positioning flight is a short/medium hop, not the long leg
@@ -69,7 +70,11 @@ export function normalize(input) {
     // (`positioningEnd` is the older name for the same switch.)
     positioningEnd: input.stopover === true || input.positioningEnd === true,
     stopoverHours: clamp(input.stopoverHours, 1, 8, 4), // longest second flight to consider
-    stopoverSide: input.stopoverSide === "start" ? "start" : "end", // "start" on a return trip: the hop is the FIRST flight
+    stopoverSide: input.stopoverSide === "start" ? "start" : "end",
+    // How many people travel together (same start). Live fares are priced for that many seats.
+    travellers: Math.round(clamp(input.travellers, 1, 6, 1)),
+    // Somewhere you can sleep for free (home, friends) - a night within FREE_STAY_KM of it costs nothing.
+    freeStay: input.freeStay && Number.isFinite(input.freeStay.lat) && Number.isFinite(input.freeStay.lon) ? { name: String(input.freeStay.name || "your place"), lat: input.freeStay.lat, lon: input.freeStay.lon } : null, // "start" on a return trip: the hop is the FIRST flight
     overnight: !!input.overnight,
     ownCar: !!input.ownCar,
     valuePerHour: clamp(input.valuePerHour, 0, 500, 0),
@@ -107,6 +112,8 @@ function buildContext(data, opts) {
     positioning: opts.positioning && opts.modes.has("air"),
     positioningEnd: opts.positioningEnd && opts.modes.has("air"),
     overnight: opts.overnight,
+    freeStay: opts.freeStay,
+    travellers: opts.travellers,
     date: opts.date,
     ownCar: opts.ownCar,
     value: opts.valuePerHour,
@@ -180,6 +187,13 @@ export function makesProgress(S, S2, A) {
 // base = ground/rides; pos = optional repositioning flight { from, to, est }.
 // `minutes` is time spent MOVING (what the X/Y-hour limits count); waiting at
 // airports is in `waitMinutes` and still appears in the itinerary's total.
+// A night at `end`: free if you have a place within reach (you live there / friends), else an estimate.
+function hotelFor(end, ctx) {
+  const fs = ctx.freeStay;
+  if (fs && haversineKm(fs, end) <= FREE_STAY_KM) return { cost: 0, source: "free", label: `Stay at your place in ${fs.name}` };
+  return hotelEstimate(end, ctx.date);
+}
+
 function makeChain(base, end, kind, ctx, noHotelMin, pos = null) {
   const baseMin = base.reduce((s, l) => s + l.minutes, 0);
   const baseCost = base.reduce((s, l) => s + l.cost, 0);
@@ -188,7 +202,7 @@ function makeChain(base, end, kind, ctx, noHotelMin, pos = null) {
   const minutes = baseMin + (pos ? pos.est.minutes + (pos.xfer?.minutes || 0) : 0);
   const cost = baseCost + (pos ? pos.est.fare + pos.est.taxes + (pos.xfer?.cost || 0) : 0);
   const needsHotel = minutes > noHotelMin;
-  const hotel = needsHotel ? hotelEstimate(end, ctx.date) : null;
+  const hotel = needsHotel ? hotelFor(end, ctx) : null;
   const score = cost + (hotel ? hotel.cost : 0) + ((minutes + waitMinutes) / 60) * ctx.value;
   const chain = { base, pos, end, kind, minutes, waitMinutes, cost, needsHotel, hotel, score };
   chain.legs = chainLegs(chain, "pre", ctx);
@@ -487,7 +501,7 @@ function hotelLeg(chain, phase, ctx) {
   return {
     checkIn: travelDay(ctx, phase === "pre" ? -1 : 0),
     kind: "hotel",
-    label: `Hotel night near ${chain.end.name}`,
+    label: chain.hotel.label || `Hotel night near ${chain.end.name}`,
     from: chain.end.name,
     to: chain.end.name,
     city: chain.end.city,
@@ -644,6 +658,7 @@ export async function search(rawInput, data, deps = {}) {
   const byScore = (x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes;
   if (deps.livePrices) await refineFlights(itineraries, opts, ctx, deps, live);
   if (deps.liveHotel) await refineHotels(itineraries, opts, ctx, deps, live);
+  if (opts.travellers > 1) for (const it of itineraries) partyScale(it, opts);
 
   itineraries.sort(byScore);
 
@@ -964,6 +979,29 @@ function attachTimes(it) {
   });
 }
 
+// More than one traveller: turn per-person estimates into the party's cost. Live flight fares were already
+// priced for every seat by the provider. A taxi or a hotel room is shared (4 to a car, 2 to a room);
+// coaches, trains, taxes and estimated flights are per person.
+function partyScale(it, opts) {
+  const n = opts.travellers;
+  const cars = Math.ceil(n / 4);
+  const rooms = Math.ceil(n / 2);
+  const factor = (l) => {
+    if (l.kind === "flight") return l.source === "live" ? 1 : n;
+    if (l.kind === "tax") return n;
+    if (l.kind === "hotel") return l.source === "free" ? 1 : rooms;
+    if (l.kind === "rail" || l.kind === "bus" || l.kind === "ferry") return n;
+    if (l.kind === "ground") return l.xfer ? n : cars;
+    return 1;
+  };
+  it.legs = it.legs.map((l) => {
+    const k = factor(l);
+    return k === 1 || !l.cost ? l : { ...l, cost: round2(l.cost * k) };
+  });
+  attachPoints(it, { date: opts.date });
+  finish(it, opts);
+}
+
 async function refineFlights(itineraries, opts, ctx, deps, live) {
   const cov = COVERAGE[opts.breadth] || COVERAGE.all;
   const K = deps.liveTopK ?? cov.plain;
@@ -1087,7 +1125,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
           live.calls++;
           try {
             // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
-            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, batch: g.batch, bags: cabinBags(opts) });
+            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, batch: g.batch, bags: cabinBags(opts), travellers: opts.travellers });
             const got = new Set((rows || []).filter((r) => Number.isFinite(r?.fare)).map((r) => `${r.from}-${r.to}`));
             for (const p of g.pairs.values()) if (!got.has(`${p.from}-${p.to}`)) live.unpriced.push(`${p.from}>${p.to}`);
             for (const r of rows || []) {
@@ -1196,7 +1234,7 @@ async function refineHotels(itineraries, opts, ctx, deps, live) {
 
   const lookups = new Map();
   for (const it of dedupe(pool).slice(0, N)) {
-    for (const leg of it.legs) if (leg.kind === "hotel") lookups.set(hotelKey(leg, ctx), leg);
+    for (const leg of it.legs) if (leg.kind === "hotel" && leg.source !== "free") lookups.set(hotelKey(leg, ctx), leg);
   }
   const rates = new Map();
   await Promise.all(
@@ -1216,7 +1254,7 @@ async function refineHotels(itineraries, opts, ctx, deps, live) {
   for (const it of itineraries) {
     let changed = false;
     for (const leg of it.legs) {
-      const r = leg.kind === "hotel" ? rates.get(hotelKey(leg, ctx)) : null;
+      const r = leg.kind === "hotel" && leg.source !== "free" ? rates.get(hotelKey(leg, ctx)) : null;
       if (r) {
         leg.cost = Math.round(r.nightly);
         leg.source = "live";

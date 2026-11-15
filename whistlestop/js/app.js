@@ -12,7 +12,7 @@ const els = {
   overnight: $("overnight"), positioning: $("positioning"), positioningEnd: $("positioningEnd"), stopoverHours: $("stopoverHours"), stopoverWrap: $("stopoverHoursWrap"), owncar: $("owncar"),
   value: $("value"), cents: $("cents"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"), summary: $("summary"), recent: $("recent"),
-  rdate: $("rdate"), returnBox: $("returnBox"), roundbar: $("roundbar"),
+  rdate: $("rdate"), returnBox: $("returnBox"), roundbar: $("roundbar"), travellers: $("travellers"), stay: $("stay"), stayWrap: $("stayWrap"),
   prefs: $("prefs"), prefcount: $("prefcount"), costnote: $("costnote"), livepill: $("livepill"),
   vSearch: $("view-search"), vResults: $("view-results"), vTrip: $("view-trip"),
 };
@@ -25,6 +25,7 @@ const BAG_LABEL = { personal: "Personal item", carryon: "Cabin bag", checked1: "
 const getSuggestions = (text, signal) => suggest(text, HUBS, { signal });
 const fromBox = attachCombobox(els.from, { getSuggestions });
 const toBox = attachCombobox(els.to, { getSuggestions });
+const stayBox = attachCombobox(els.stay, { getSuggestions });
 const toPoint = (s) => ({ name: s.label, lat: s.lat, lon: s.lon, cc: s.cc });
 
 let places = null; // { origin, destination } once resolved
@@ -104,7 +105,7 @@ function prefState() {
   return {
     bags: radio("bags") || "personal", overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, stopoverHours: els.stopoverHours.value,
     owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value, rank: radio("rank") || "cash",
-    round: radio("triptype") === "round", rdate: els.rdate.value,
+    round: radio("triptype") === "round", rdate: els.rdate.value, travellers: els.travellers.value, stay: els.stay.value,
   };
 }
 
@@ -124,6 +125,7 @@ function updatePrefsUi() {
   els.prefcount.textContent = n;
   els.prefcount.hidden = n === 0;
   els.stopoverWrap.hidden = !p.positioningEnd;
+  els.stayWrap.hidden = !p.positioningEnd;
   // a stopover prices the long flight to ~30 gateway hubs, then the second flight from those with a real fare:
   // about 8 more searches (14 with a night)
   const oneWay = (p.overnight ? 20 : 13) + (p.positioningEnd ? (p.overnight ? 14 : 8) : 0);
@@ -135,7 +137,7 @@ function saveForm() {
   try {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
-      ...prefState(), modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place,
+      ...prefState(), modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place, stayPlace: stayBox.place,
     }));
   } catch { /* storage optional */ }
   updatePrefsUi();
@@ -155,6 +157,9 @@ function restoreForm() {
     if (s.toPlace) toBox.setPlace(s.toPlace);
     if (s.date && s.date >= els.date.min) els.date.value = s.date;
     setRadio("triptype", s.round ? "round" : "one");
+    if ([...els.travellers.options].some((o) => o.value === String(s.travellers))) els.travellers.value = String(s.travellers);
+    els.stay.value = s.stay ?? "";
+    if (s.stayPlace && s.stay) stayBox.setPlace(s.stayPlace);
     if (s.rdate && s.rdate >= els.date.value) els.rdate.value = s.rdate;
     els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.positioningEnd.checked = s.positioningEnd === true; els.owncar.checked = !!s.owncar;
     if ([...els.stopoverHours.options].some((o) => o.value === String(s.stopoverHours))) els.stopoverHours.value = String(s.stopoverHours);
@@ -284,7 +289,7 @@ function summaryHtml(q, returnDate = "") {
       <b>${esc(shortName(q.origin))} ${returnDate ? "⇄" : "→"} ${esc(dest)}</b><span class="sep"></span>
       <span>${esc(dayLabel(q.date))}${returnDate ? ` – ${esc(dayLabel(returnDate))}` : ""}</span><span class="sep"></span>
       <span>${hoursText(q.beforeHours)} to start · ${hoursText(q.afterHours)} to finish</span><span class="sep"></span>
-      <span>${esc(BAG_LABEL[q.bags])}</span>
+      <span>${esc(BAG_LABEL[q.bags])}</span>${q.travellers > 1 ? `<span class="sep"></span><span>${q.travellers} travellers</span>` : ""}
     </div>
     <button type="button" class="pillbtn" data-edit>${I.edit}Edit search</button>`;
 }
@@ -692,6 +697,7 @@ async function livePrices(pairs, date, info = {}) {
     // the main long-haul grid may spend a gap-fill lookup; everything else never does
     fill: info.group === "main" && info.round !== 2 && !info.batch ? "1" : "0",
     bags: String(info.bags ? 1 : 0),
+    ...(info.travellers > 1 ? { adults: String(info.travellers) } : {}),
     pairs: pairs.map((p) => `${p.from}-${p.to}${p.expected ? `:${Math.round(p.expected)}` : ""}`).join(","),
   });
   return cached(`/flight?${qs}`, async () => {
@@ -704,6 +710,9 @@ async function livePrices(pairs, date, info = {}) {
     }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    // Fares for several seats are only real if the proxy priced that many seats and says what its price means.
+    if (info.travellers > 1 && body.adults !== info.travellers) throw new Error("the price proxy is out of date and priced one seat - it needs updating for more than one traveller");
+    if (info.travellers > 1 && body.partyPrice === "unverified") throw new Error("prices for more than one traveller aren’t verified yet");
     return body.results || [];
   });
 }
@@ -733,7 +742,7 @@ async function cached(key, fetcher) {
 function queryFromForm() {
   const p = prefState();
   return {
-    origin: places.origin, destination: places.destination, date: els.date.value, returnDate: p.round ? els.rdate.value : "",
+    origin: places.origin, destination: places.destination, freeStay: places.stay || null, travellers: +els.travellers.value || 1, date: els.date.value, returnDate: p.round ? els.rdate.value : "",
     beforeHours: els.before.value, afterHours: els.after.value, modes: modes(),
     overnight: p.overnight, positioning: p.positioning, stopover: p.positioningEnd, stopoverHours: p.stopoverHours, ownCar: p.owncar,
     valuePerHour: p.value, pointsCents: p.cents, rankBy: p.rank, bags: p.bags,
@@ -802,7 +811,11 @@ els.form.addEventListener("submit", async (e) => {
     setStatus("Finding your places…");
     const origin = toPoint(await fromBox.resolve());
     const destination = toPoint(await toBox.resolve());
-    places = { origin, destination };
+    let stay = null;
+    if (els.positioningEnd.checked && els.stay.value.trim()) {
+      try { stay = toPoint(await stayBox.resolve()); } catch { setStatus("Couldn’t find the place you can stay for free, so hotel nights are counted as usual."); }
+    }
+    places = { origin, destination, stay };
     setStatus(radio("triptype") === "round" ? "Checking every reachable airport, both ways — this can take a moment…" : "Checking every reachable airport — this can take a moment…");
     await runSearch();
     setStatus("");
