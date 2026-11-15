@@ -491,3 +491,24 @@ footer p { max-width: 920px; margin: 0 auto; }
   .bagopts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rank-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- points ---- */
+.ptsbox { margin: 8px 0 0 0; display: grid; gap: 8px; }
+.ptschip { display: inline-flex; align-items: center; gap: 8px; background: var(--brand-soft); color: var(--brand-ink); border-radius: 999px; padding: 6px 8px 6px 14px; font-size: 0.88rem; font-weight: 500; width: fit-content; max-width: 100%; }
+.ptschip button, .award-row button, .bal-row button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 2px 8px; border-radius: 999px; }
+.ptschip button:hover, .award-row button:hover, .bal-row button:hover { background: var(--line); }
+.ptsadd summary { cursor: pointer; font-size: 0.88rem; font-weight: 600; color: var(--brand-ink); list-style: none; }
+.ptsadd summary::-webkit-details-marker { display: none; }
+.ptsadd form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; align-items: end; margin-top: 10px; }
+.ptsadd label { display: grid; gap: 4px; font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+.ptsadd input:not([type="checkbox"]), .bal-add input { font: inherit; font-size: 0.95rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.ptsadd label.chk { display: flex; align-items: center; gap: 6px; padding-bottom: 8px; }
+.ptserr { grid-column: 1 / -1; color: var(--danger); font-size: 0.85rem; }
+.ptserr:empty { display: none; }
+.ptshint { font-size: 0.85rem; color: var(--muted); padding-top: 6px; }
+.tag.pts { background: var(--brand-soft); color: var(--brand-ink); }
+.bal-add { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; margin-top: 10px; align-items: center; }
+.bal-row, .award-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); font-size: 0.92rem; }
+.bal-row input { width: 130px; font: inherit; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; margin-left: auto; }
+.award-row span { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+#awardList:not(:empty) { margin-top: 10px; }

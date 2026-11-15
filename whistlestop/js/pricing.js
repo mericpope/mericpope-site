@@ -81,15 +81,6 @@ export function hotelEstimate(hub, date) {
   return { cost: Math.round(base * near * noise), source: "estimate" };
 }
 
-// ---- Points (award) estimate for flights ------------------------------
-// Award prices don't track cash fares 1:1, and taxes/fees stay payable in
-// cash on an award ticket - so the cash taxes line is reused unchanged.
-export const TYPICAL_CENTS_PER_POINT = 1.4;
-
-export function pointsEstimate(fare, seed) {
-  const variance = 0.75 + 0.6 * rand01(`pt:${seed}`);
-  const pts = Math.max(5000, Math.round(((fare * variance) / (TYPICAL_CENTS_PER_POINT / 100)) / 500) * 500);
-  return { points: pts, source: "estimate" };
-}
+// (Points prices are not modelled: they are typed in by the user - see points.js.)
 
 export { round2 };

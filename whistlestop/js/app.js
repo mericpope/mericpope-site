@@ -1,5 +1,6 @@
 import { search, searchRoundTrip, returnLeg } from "./engine.js";
 import { planGroup } from "./group.js";
+import { PROGRAMS, loadPoints, savePoints, addAward, removeAward, setBalance, removeBalance, awardsForLeg, legDate, pointsOptions, pointsRank, describeOption } from "./points.js";
 import { HUBS, LINKS } from "./data/hubs.js";
 import { suggest } from "./places.js";
 import { attachCombobox } from "./combobox.js";
@@ -14,7 +15,7 @@ const els = {
   value: $("value"), cents: $("cents"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"), summary: $("summary"), recent: $("recent"),
   rdate: $("rdate"), returnBox: $("returnBox"), roundbar: $("roundbar"), travellers: $("travellers"), stay: $("stay"), stayWrap: $("stayWrap"),
-  groupRow: $("groupRow"), splitFields: $("splitFields"), from2: $("from2"), name1: $("name1"), name2: $("name2"), hosts2: $("hosts2"),
+  groupRow: $("groupRow"), splitFields: $("splitFields"), from2: $("from2"), name1: $("name1"), name2: $("name2"), hosts2: $("hosts2"), balances: $("balances"), awardList: $("awardList"), pointsSunk: $("pointsSunk"),
   prefs: $("prefs"), prefcount: $("prefcount"), costnote: $("costnote"), livepill: $("livepill"),
   vSearch: $("view-search"), vResults: $("view-results"), vTrip: $("view-trip"),
 };
@@ -29,6 +30,11 @@ const fromBox = attachCombobox(els.from, { getSuggestions });
 const toBox = attachCombobox(els.to, { getSuggestions });
 const stayBox = attachCombobox(els.stay, { getSuggestions });
 const from2Box = attachCombobox(els.from2, { getSuggestions });
+
+// Points prices, balances and the "already paid for" switch: typed in by the user, kept in this browser only.
+let ptsState = loadPoints(localStorage);
+const ptsSettings = () => ({ balances: ptsState.balances, cpp: ptsState.cpp, defaultCpp: +els.cents.value || 1.2, sunk: ptsState.sunk });
+const ptsApplies = (query) => !(+query?.travellers > 1); // a points price is for one traveller
 const toPoint = (s) => ({ name: s.label, lat: s.lat, lon: s.lon, cc: s.cc });
 
 let places = null; // { origin, destination } once resolved
@@ -456,6 +462,7 @@ function sortedItems() {
   const f = FILTERS.find((x) => x[0] === view.filter)[2];
   const list = view.items.filter(f);
   const key = view.sort === "time" ? (a, b) => a.travelMinutes - b.travelMinutes || a.totalCost - b.totalCost
+    : view.sort === "points" ? (a, b) => pointsRank(a, ptsState.awards, ptsSettings()) - pointsRank(b, ptsState.awards, ptsSettings()) || a.totalCost - b.totalCost
     : view.sort === "score" ? (a, b) => a.score - b.score || a.totalCost - b.totalCost
       : (a, b) => a.totalCost - b.totalCost || a.travelMinutes - b.travelMinutes;
   return list.sort(key);
@@ -472,6 +479,7 @@ function rowHtml(it) {
     it.hotelNights ? `<span class="tag">${I.bed}${it.hotelNights} night${it.hotelNights > 1 ? "s" : ""}</span>` : "",
     isDirect ? `<span class="tag">Direct</span>` : "",
     tt ? `<span class="tag">${esc(tt)}</span>` : "",
+    ptsChip(it),
   ].join("");
   return `<button type="button" class="row" data-trip="${i}">
     <div class="p">${money(it.totalCost)}</div>
@@ -485,7 +493,7 @@ function listHtml() {
   const SHOW = 8;
   const shown = view.showAll ? list : list.slice(0, SHOW);
   const valued = +view.query.valuePerHour > 0;
-  const sortOpts = [[valued ? "score" : "price", valued ? "Best value first" : "Cheapest first"], ["time", "Fastest first"]];
+  const sortOpts = [[valued ? "score" : "price", valued ? "Best value first" : "Cheapest first"], ["time", "Fastest first"], ...(ptsState.awards.length && ptsApplies(view.query) ? [["points", "Cheapest with my points"]] : [])];
   const filterBtns = FILTERS.map(([k, label]) => `<button type="button" data-filter="${k}" aria-pressed="${view.filter === k}">${label}</button>`).join("");
   return `<div class="listhead">
       <h2>All options <span>${view.items.length}</span></h2>
@@ -555,7 +563,7 @@ function renderResults() {
 
 function render(res, query, { summary = true } = {}) {
   if (summary) els.summary.innerHTML = summaryHtml(query);
-  view = { res, query, items: [], filter: "all", sort: +query.valuePerHour > 0 ? "score" : "price", showAll: false, trip: null };
+  view = { res, query, items: [], filter: "all", sort: query.rankBy === "points" && ptsState.awards.length && ptsApplies(query) ? "points" : +query.valuePerHour > 0 ? "score" : "price", showAll: false, trip: null };
   // Real data only: with flights selected, nothing is shown unless live prices came back.
   if (res.input.modes.has("air") && !res.live?.active) {
     els.notice.innerHTML = noticeHtml(res);
@@ -647,7 +655,7 @@ function tripHtml(it, res, query) {
         <div class="mid"><span>${dur(l.minutes)}</span><i></i></div>
         <div class="right"><div class="tm">${esc(arrive || "—")}</div><div class="pl">${place(l.toCode, l.toCity)}</div></div></div>
       <div class="ff"><span class="bag">${bag ? `${I.bag}${esc(bag)}` : l.date ? esc(dayLabel(l.date)) : ""}</span>${link ? `<a href="${esc(link.href)}" target="_blank" rel="noopener noreferrer">${esc(link.text)} ${I.ext}</a>` : ""}</div>
-    </article></div></div>`;
+    </article>${pointsPanel(l, query)}</div></div>`;
   }).join("");
 
   // side summary
@@ -662,7 +670,6 @@ function tripHtml(it, res, query) {
     ["Bags", BAG_LABEL[query.bags]],
     ["Tickets", nFlights > 1 ? `${nFlights} separate` : nFlights === 1 ? "1" : ""],
   ].filter((x) => x && x[1]).map(([k, v]) => `<div><span>${k}</span><span>${esc(v)}</span></div>`).join("");
-  const pts = it.points ? `<div><span>On points</span><span>${num(it.points.points)} pts + ${money(it.points.fees)} ≈ ${money(it.pointsEffectiveCost)}</span></div>` : "";
   const bagWarn = it.checkedBags ? `<div class="notice" style="margin:14px 0 0"><b>Checked-bag fees are not in this total.</b> You asked for ${it.checkedBags} per traveller${nFlights > 1 ? `, and the fee applies on each of the ${nFlights} tickets` : ""}.</div>` : "";
   const flightLinks = flightsOf(it).map((l, i) => ({ l, link: legLink(l, query.date), i })).filter((x) => x.link);
   const btns = flightLinks.map(({ link, i }) => `<a class="${i === 0 ? "p1" : "p2"}" href="${esc(link.href)}" target="_blank" rel="noopener noreferrer">${nFlights > 1 ? `Find ticket ${i + 1}` : "Find this flight"} ${I.ext}</a>`).join("");
@@ -677,7 +684,7 @@ function tripHtml(it, res, query) {
       <div class="maincol tl" style="gap:0">${items}</div>
       <aside class="tripside">
         <section class="tsum"><div class="tot"><span>Total</span><b>${money(it.totalCost)}</b></div>
-          <div class="lines">${lines}</div><hr /><div class="lines b">${facts}${pts}</div>${bagWarn}
+          <div class="lines">${lines}</div><hr /><div class="lines b">${facts}${pointsSummary(it, query)}</div>${bagWarn}
           ${btns ? `<div class="btns">${btns}</div>` : ""}</section>
         ${cmpHtml}
       </aside></div>`;
@@ -687,9 +694,113 @@ function openTrip(i) {
   const it = view.items[i];
   if (!it) return;
   view.trip = it;
-  els.vTrip.innerHTML = tripHtml(it, view.res, view.query);
+  renderTrip();
   showView("trip");
 }
+
+function renderTrip() {
+  if (view?.trip) els.vTrip.innerHTML = tripHtml(view.trip, view.res, view.query);
+}
+
+// ---------- points: chips, the panel on a flight, the summary, the Preferences section ----------
+function ptsChip(it) {
+  if (!view || !ptsApplies(view.query)) return "";
+  const p = pointsOptions(it, ptsState.awards, ptsSettings());
+  const b = p.bestEffective;
+  return b ? `<span class="tag pts">or ${money(b.cash)} + ${num(b.pointsTotal)} pts</span>` : "";
+}
+
+function pointsPanel(l, query) {
+  if (!ptsApplies(query)) return "";
+  const have = awardsForLeg(l, ptsState.awards);
+  const chips = have.map((x) => `<span class="ptschip"><span><b>${num(x.points)}</b> ${esc(x.program)} + ${money(x.fees)}${x.date ? "" : " · any date"}</span><button type="button" data-award-del="${esc(x.id)}" aria-label="Remove this points price">×</button></span>`).join("");
+  const lastProgram = ptsState.awards.length ? ptsState.awards[ptsState.awards.length - 1].program : "";
+  return `<div class="ptsbox">${chips}<details class="ptsadd"><summary>${have.length ? "Add another points price" : "Have a points price for this flight?"}</summary>
+    <form data-award-form data-from="${esc(l.fromCode)}" data-to="${esc(l.toCode)}" data-date="${esc(legDate(l))}">
+      <label>Program<input name="program" list="programs" placeholder="e.g. Delta SkyMiles" value="${esc(lastProgram)}" autocomplete="off" required /></label>
+      <label>Points<input name="points" type="number" min="1" step="1" inputmode="numeric" placeholder="21200" required /></label>
+      <label>Cash taxes &amp; fees ($)<input name="fees" type="number" min="0" step="1" inputmode="decimal" placeholder="6" /></label>
+      <label class="chk"><input name="anydate" type="checkbox" /> any date</label>
+      <button type="submit" class="primary small">Save</button><span class="ptserr" role="alert"></span>
+    </form></details></div>`;
+}
+
+function pointsSummary(it, query) {
+  if (!ptsApplies(query)) return "";
+  const p = pointsOptions(it, ptsState.awards, ptsSettings());
+  if (!p.has) return `<div class="ptshint">Add a points price to a flight to compare dollars and points.</div>`;
+  if (!p.affordable) return `<div><span>All cash</span><span>${money(p.allCash)}</span></div><div class="ptshint">You don’t have enough points in a balance you entered to use this points price.</div>`;
+  const b = p.bestEffective;
+  const st = ptsSettings();
+  const how = st.sunk ? "points counted as $0" : `points valued at ${money(b.value)} (${st.defaultCpp}¢ each)`;
+  return `<div><span>All cash</span><span>${money(p.allCash)}</span></div>
+    <div><span>With my points</span><span>${money(b.cash)} + ${num(b.pointsTotal)} pts</span></div>
+    <div><span>Points used</span><span>${esc(describeOption(b))}</span></div>
+    <div class="ptshint">${esc(how)}${st.sunk ? "" : ` → ${money(b.effective)} all in`}${b.assumesBalance ? ". No balance entered for that program, so it’s assumed to be enough" : ""}.</div>`;
+}
+
+function fillPrograms() {
+  $("programs").innerHTML = PROGRAMS.map((n) => `<option value="${esc(n)}"></option>`).join("");
+}
+
+function renderPointsPrefs() {
+  els.pointsSunk.checked = ptsState.sunk;
+  els.balances.innerHTML = Object.entries(ptsState.balances).map(([prog, n]) => `<div class="bal-row"><b>${esc(prog)}</b><input type="number" min="0" step="500" value="${n}" data-bal="${esc(prog)}" aria-label="${esc(prog)} balance" /><button type="button" data-bal-del="${esc(prog)}" aria-label="Remove ${esc(prog)}">×</button></div>`).join("");
+  els.awardList.innerHTML = ptsState.awards.length
+    ? `<div class="flabel">Saved points prices</div>` + ptsState.awards.map((x) => `<div class="award-row"><span><b>${esc(x.from)} → ${esc(x.to)}</b> ${x.date ? esc(dayLabel(x.date)) : "any date"} · ${num(x.points)} ${esc(x.program)} + ${money(x.fees)}</span><button type="button" data-award-del="${esc(x.id)}" aria-label="Remove">×</button></div>`).join("")
+    : "";
+}
+
+function setPoints(next) {
+  ptsState = next;
+  savePoints(localStorage, ptsState);
+  refreshPoints();
+}
+
+function refreshPoints() {
+  renderPointsPrefs();
+  if (!view) return;
+  const valued = +view.query.valuePerHour > 0;
+  if (radio("rank") === "points" && ptsState.awards.length) view.sort = "points";
+  else if (view.sort === "points") view.sort = valued ? "score" : "price";
+  const list = $("list");
+  if (list) list.innerHTML = listHtml();
+  if (view.trip && !els.vTrip.hidden) renderTrip();
+}
+
+document.addEventListener("submit", (e) => {
+  const f = e.target.closest("[data-award-form]");
+  if (!f) return;
+  e.preventDefault();
+  const d = new FormData(f);
+  try {
+    setPoints(addAward(ptsState, {
+      program: d.get("program"), from: f.dataset.from, to: f.dataset.to,
+      date: d.get("anydate") ? "" : f.dataset.date, points: d.get("points"), fees: d.get("fees"),
+    }));
+  } catch (err) {
+    const box = f.querySelector(".ptserr");
+    if (box) box.textContent = err.message;
+  }
+});
+document.addEventListener("click", (e) => {
+  const del = e.target.closest("[data-award-del]");
+  if (del) return setPoints(removeAward(ptsState, del.dataset.awardDel));
+  const bal = e.target.closest("[data-bal-del]");
+  if (bal) return setPoints(removeBalance(ptsState, bal.dataset.balDel));
+  if (e.target.closest("#balAdd")) {
+    const program = $("balProgram").value;
+    if (!program.trim()) return;
+    $("balProgram").value = "";
+    const amount = $("balAmount").value;
+    $("balAmount").value = "";
+    setPoints(setBalance(ptsState, program, amount));
+  }
+});
+document.addEventListener("change", (e) => {
+  if (e.target.matches("[data-bal]")) setPoints(setBalance(ptsState, e.target.dataset.bal, e.target.value));
+  else if (e.target.id === "pointsSunk") setPoints({ ...ptsState, sunk: e.target.checked });
+});
 
 // ---------- clicks inside results / trip ----------
 document.addEventListener("click", (e) => {
@@ -941,7 +1052,7 @@ $("reset-prefs").addEventListener("click", () => {
 els.prefs.addEventListener("change", () => { saveForm(); });
 // Ranking inputs re-sort instantly without re-geocoding (the live lookups are cached, so this costs nothing).
 let timer;
-for (const el of [els.value, els.cents, ...document.querySelectorAll('input[name="rank"]')]) {
+for (const el of [els.value]) {
   el.addEventListener("input", () => {
     if (!places || !view) return;
     clearTimeout(timer);
@@ -950,6 +1061,10 @@ for (const el of [els.value, els.cents, ...document.querySelectorAll('input[name
 }
 els.form.addEventListener("change", saveForm);
 
+els.cents.addEventListener("input", () => refreshPoints());
+document.querySelectorAll('input[name="rank"]').forEach((r) => r.addEventListener("change", () => refreshPoints()));
 restoreForm();
 renderRecent();
+fillPrograms();
+renderPointsPrefs();
 if (LIVE_PROVIDER_URL) els.livepill.hidden = false;

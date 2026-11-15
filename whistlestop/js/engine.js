@@ -26,7 +26,7 @@
 //
 // Pure ESM - runs in the browser and under `node --test`.
 import { groundLeg, groundMinutes, haversineKm, round2 } from "./geo.js";
-import { flightEstimate, linkEstimate, hotelEstimate, pointsEstimate } from "./pricing.js";
+import { flightEstimate, linkEstimate, hotelEstimate } from "./pricing.js";
 
 export const MODES = ["air", "rail", "bus", "ferry"];
 export const LOCAL_MINUTES = 90;
@@ -521,16 +521,10 @@ function hotelLeg(chain, phase, ctx) {
   };
 }
 
-// Points apply to the MAIN flight only (the short hops are cash).
-function attachPoints(it, ctx) {
-  const main = it.legs.find((l) => l.kind === "flight" && l.role === "main");
-  if (!main) {
-    it.points = null;
-    return;
-  }
-  const tax = it.legs.find((l) => l.kind === "tax" && l.forFlight === main.id);
-  const pts = pointsEstimate(main.cost, `${main.fromCode}:${main.toCode}:${ctx.date}`);
-  it.points = { points: pts.points, fees: tax ? tax.cost : 0, cashFare: main.cost, source: pts.source };
+// Points are NOT estimated: award prices can't be read from the airlines, so a points price only exists
+// when the user types one in (see points.js, applied in the page). Kept as a null field for callers.
+function attachPoints(it) {
+  it.points = null;
 }
 
 function finish(itin, opts) {
@@ -545,14 +539,7 @@ function finish(itin, opts) {
   itin.cabinBagIncluded = opts.bags !== "personal";
   const timeCost = (itin.travelMinutes / 60) * opts.valuePerHour;
   itin.scoreCash = itin.totalCost + timeCost;
-  if (itin.points) {
-    itin.pointsEffectiveCost = round2(itin.totalCost - itin.points.cashFare + (itin.points.points * opts.pointsCents) / 100);
-    itin.scorePoints = itin.pointsEffectiveCost + timeCost;
-  } else {
-    itin.pointsEffectiveCost = itin.totalCost;
-    itin.scorePoints = itin.scoreCash;
-  }
-  itin.score = opts.rankBy === "points" ? itin.scorePoints : itin.scoreCash;
+  itin.score = itin.scoreCash;
   return itin;
 }
 

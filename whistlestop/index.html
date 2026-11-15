@@ -194,6 +194,21 @@
         <label class="switchrow"><span><b>I’ll drive to departure points</b></span><input id="owncar" type="checkbox" role="switch" /><i class="track"></i></label>
       </fieldset>
 
+      <fieldset class="group" id="pointsGroup">
+        <legend>My points</legend>
+        <p class="note" style="margin-top:0">Airlines don’t let anyone read award prices automatically, and Google doesn’t show them. So you type in the points price you find on the airline’s site, on the flight in a trip, and Whistlestop compares it with the cash price everywhere that flight appears. Everything here stays in this browser.</p>
+        <label class="switchrow"><span><b>My points are already paid for</b><small>Count them as $0. Off: each point is worth the cents set under Ranking.</small></span><input id="pointsSunk" type="checkbox" role="switch" /><i class="track"></i></label>
+        <div id="balances"></div>
+        <div class="bal-add">
+          <input id="balProgram" list="programs" placeholder="Program, e.g. Delta SkyMiles" autocomplete="off" aria-label="Program" />
+          <input id="balAmount" type="number" min="0" step="500" inputmode="numeric" placeholder="Points" aria-label="Points balance" />
+          <button type="button" id="balAdd" class="textbtn">Add balance</button>
+        </div>
+        <p class="note">Balances are optional. With one entered, only what you can afford is offered; without one, a program is assumed to have enough.</p>
+        <div id="awardList"></div>
+        <datalist id="programs"></datalist>
+      </fieldset>
+
       <fieldset class="group">
         <legend>Ranking</legend>
         <div class="rank-grid">
@@ -201,8 +216,8 @@
           <label class="fbox small"><span class="flabel">My points are worth (¢ each)</span><input id="cents" type="number" min="0.1" max="10" step="0.1" value="1.4" inputmode="decimal" /></label>
         </div>
         <div class="seg" role="radiogroup" aria-label="Rank by">
-          <label><input type="radio" name="rank" value="cash" checked /><span>Cash price</span></label>
-          <label><input type="radio" name="rank" value="points" /><span>Paying with points</span></label>
+          <label><input type="radio" name="rank" value="cash" checked /><span>Cash only</span></label>
+          <label><input type="radio" name="rank" value="points" /><span>Using my points</span></label>
         </div>
       </fieldset>
     </div>
