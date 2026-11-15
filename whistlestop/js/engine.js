@@ -599,7 +599,7 @@ export async function search(rawInput, data, deps = {}) {
   }
 
   // Live pricing (optional). Estimates pick the candidates; real quotes decide.
-  const live = { active: false, calls: 0, requested: 0, priced: 0, hotelsPriced: 0, rejectedByTimetable: 0, error: null };
+  const live = { active: false, calls: 0, requested: 0, priced: 0, hotelsPriced: 0, rejectedByTimetable: 0, error: null, unpriced: [], dropped: [] };
   const byScore = (x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes;
   if (deps.livePrices) await refineFlights(itineraries, opts, ctx, deps, live);
   if (deps.liveHotel) await refineHotels(itineraries, opts, ctx, deps, live);
@@ -1047,6 +1047,8 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
           try {
             // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
             const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, batch: g.batch, bags: cabinBags(opts) });
+            const got = new Set((rows || []).filter((r) => Number.isFinite(r?.fare)).map((r) => `${r.from}-${r.to}`));
+            for (const p of g.pairs.values()) if (!got.has(`${p.from}-${p.to}`)) live.unpriced.push(`${p.from}>${p.to}`);
             for (const r of rows || []) {
               if (!Number.isFinite(r?.fare)) continue;
               byKey.set(`${g.date}|${r.from}-${r.to}`, r);
@@ -1129,7 +1131,10 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     if (it.mode !== "air") { kept.push(it); continue; }
     const next = applyQuotes(it, byKey, opts, ctx);
     if (next) kept.push(next);
-    else live.rejectedByTimetable++;
+    else {
+      live.rejectedByTimetable++;
+      if (live.dropped.length < 60) live.dropped.push(it.route.join(">"));
+    }
   }
   itineraries.splice(0, itineraries.length, ...kept);
 }

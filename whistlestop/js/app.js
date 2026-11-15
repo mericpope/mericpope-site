@@ -262,7 +262,14 @@ function noticeHtml(res) {
   if (lv?.active) {
     const hotels = lv.hotelsPriced ? ` and ${lv.hotelsPriced} hotel rate${lv.hotelsPriced > 1 ? "s" : ""}` : "";
     const dropped = res.stats.unverified ? ` ${num(res.stats.unverified)} other route${res.stats.unverified > 1 ? "s" : ""} couldn’t be priced with a real quote, so ${res.stats.unverified > 1 ? "they aren’t" : "it isn’t"} shown.` : "";
-    return `<details class="notice ok"><summary><b>Live prices.</b> ${num(lv.priced)} airport pairs checked in ${lv.calls} live request${lv.calls > 1 ? "s" : ""}${hotels}.</summary><p>Every flight shown is a real quote with its flight number.${dropped} Taxis, trains, buses, ferries and any hotel without a live rate are estimates (marked EST) — there is no real-time source for them.</p></details>`;
+    const uniq = (a) => [...new Set(a)];
+    const un = uniq(lv.unpriced || []);
+    const dr = uniq(lv.dropped || []);
+    const detail = [
+      un.length ? `<p><b>No real fare came back for ${num(un.length)} airport pair${un.length > 1 ? "s" : ""}</b> that were asked about: ${esc(un.slice(0, 60).join(", "))}${un.length > 60 ? "…" : ""}.</p>` : "",
+      dr.length ? `<p><b>Dropped because the real flight times don’t connect:</b> ${esc(dr.slice(0, 30).join(", "))}${dr.length > 30 ? "…" : ""}.</p>` : "",
+    ].join("");
+    return `<details class="notice ok"><summary><b>Live prices.</b> ${num(lv.priced)} airport pairs checked in ${lv.calls} live request${lv.calls > 1 ? "s" : ""}${hotels}.</summary><p>Every flight shown is a real quote with its flight number.${dropped} Taxis, trains, buses, ferries and any hotel without a live rate are estimates (marked EST) — there is no real-time source for them.</p>${detail}</details>`;
   }
   const why = lv?.error
     ? `Live flight prices couldn’t be fetched right now (${esc(lv.error)}). This is most often the site’s daily limit on live searches being used up — it resets at midnight UTC.`
