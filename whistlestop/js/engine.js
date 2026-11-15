@@ -33,6 +33,8 @@ export const LOCAL_MINUTES = 90;
 
 const MAX_RIDES = 3;
 const TRANSFER_KM = 15; // two stations this close count as "a change in the same city"
+const XFER_KM = 100; // a stopover's second flight may leave from another airport this close to where you land (LHR -> STN/LTN/LGW)
+const XFER_MAX = 4; // at most this many alternative airports per landing airport
 const MAX_POSITIONING_KM = 3000; // a positioning flight is a short/medium hop, not the long leg
 const SELF_TRANSFER_MIN = 90; // collect bags + re-check in, on top of the normal airport time
 const MAX_HOP_STARTS = 12; // origin-side airports a repositioning flight may start from (nearest first)
@@ -183,8 +185,8 @@ function makeChain(base, end, kind, ctx, noHotelMin, pos = null) {
   const baseCost = base.reduce((s, l) => s + l.cost, 0);
   const intl = pos ? pos.from.cc !== pos.to.cc : false;
   const waitMinutes = pos ? (intl ? 150 : 100) + SELF_TRANSFER_MIN : 0;
-  const minutes = baseMin + (pos ? pos.est.minutes : 0);
-  const cost = baseCost + (pos ? pos.est.fare + pos.est.taxes : 0);
+  const minutes = baseMin + (pos ? pos.est.minutes + (pos.xfer?.minutes || 0) : 0);
+  const cost = baseCost + (pos ? pos.est.fare + pos.est.taxes + (pos.xfer?.cost || 0) : 0);
   const needsHotel = minutes > noHotelMin;
   const hotel = needsHotel ? hotelEstimate(end, ctx.date) : null;
   const score = cost + (hotel ? hotel.cost : 0) + ((minutes + waitMinutes) / 60) * ctx.value;
@@ -211,12 +213,13 @@ function chainLegs(chain, side, ctx) {
       f,
       ...(est.taxes > 0 ? [taxLeg(A1, est, f.id)] : []),
       between(A2),
+      ...(chain.pos.xfer ? [reverseLeg(chain.pos.xfer)] : []), // landed at A2, coach on to where the long flight leaves
     ];
   }
   // post: the main flight has landed at A2; fly on to A1, near the destination
   const est = estimate(ctx, A2, A1) ?? chain.pos.est;
   const f = flightLeg(A2, A1, est, "post");
-  return [between(A2), f, ...(est.taxes > 0 ? [taxLeg(A2, est, f.id)] : []), waitLeg(A1, "Arrival & baggage", intl ? 60 : 30, "arrive"), ...base];
+  return [between(chain.end), ...(chain.pos.xfer ? [chain.pos.xfer] : []), f, ...(est.taxes > 0 ? [taxLeg(A2, est, f.id)] : []), waitLeg(A1, "Arrival & baggage", intl ? 60 : 30, "arrive"), ...base];
 }
 
 // Best chain per (end airport, needs-hotel) so the cheap option isn't buried.
@@ -225,7 +228,7 @@ function chainLegs(chain, side, ctx) {
 // from Heathrow, so we must not discard the Stansted version before real prices
 // have had a chance to look at it.
 function keepBest(map, chain) {
-  const key = `${chain.end.id}|${chain.needsHotel}|${chain.pos ? chain.pos.from.id : ""}`;
+  const key = `${chain.end.id}|${chain.needsHotel}|${chain.pos ? `${chain.pos.from.id}>${chain.pos.to.id}` : ""}`;
   const cur = map.get(key);
   if (!cur || chain.score < cur.score) map.set(key, chain);
 }
@@ -252,6 +255,35 @@ function airportsNear(ctx, p, km) {
   const out = within(ctx.airports, p, km);
   if (key) ctx.airportCache.set(key, out);
   return out;
+}
+
+// Airports a coach/train ride from `X` that a second, separate-ticket flight could leave from - the low-cost
+// bases (Stansted, Luton, Beauvais, Bergamo...) are rarely where the long-haul flight lands.
+function transferAirports(ctx, X) {
+  ctx.xferCache ??= new Map();
+  if (!ctx.xferCache.has(X.id)) {
+    const list = within(ctx.airports, X, XFER_KM)
+      .filter((Y) => Y.id !== X.id && Y.tier <= 2 && haversineKm(X, Y) <= XFER_KM)
+      .sort((a, b) => haversineKm(X, a) - haversineKm(X, b))
+      .slice(0, XFER_MAX);
+    ctx.xferCache.set(X.id, list);
+  }
+  return ctx.xferCache.get(X.id);
+}
+
+// The ride between two airports (an estimate - there is no real-time source): a coach or train, not a taxi.
+function airportTransfer(X, Y) {
+  const g = groundLeg(X, Y);
+  return {
+    ...g,
+    kind: "ground",
+    label: "Coach / train between airports",
+    from: X.name, to: Y.name, fromId: X.id, toId: Y.id, fromCity: X.city, toCity: Y.city, fromCode: X.code, toCode: Y.code,
+    minutes: Math.round(g.minutes + 20), // + getting to the stop and waiting for the coach
+    cost: Math.round(Math.max(12, g.km * 0.25)),
+    xfer: true,
+    source: "estimate",
+  };
 }
 
 function gatewaysNear(ctx, p) {
@@ -382,7 +414,7 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop, hopMin = 
     // "overnight" on we also offer the same hop after a night in the stopover city.
     const stopover = hopMin > 0;
     const flightWindow = stopover ? Math.max(windowMin, hopMin) : windowMin;
-    const sameDayMin = stopover ? Math.max(noHotelMin, hopMin) : noHotelMin;
+    const sameDayMin = stopover ? Infinity : noHotelMin; // a same-day stopover never needs a hotel just because it is long
     const starts = [...best.values()]
       .filter((c) => !c.needsHotel && !c.pos)
       .sort((a, b) => a.minutes - b.minutes)
@@ -390,12 +422,19 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop, hopMin = 
     const hops = [];
     for (const C0 of starts) {
       const A1 = C0.end;
-      for (const A2 of gatewaysNear(ctx, A1)) {
-        if (A2.id === A1.id) continue;
-        const est = estimate(ctx, A1, A2);
-        if (!est || C0.minutes + est.minutes > flightWindow) continue;
-        hops.push(makeChain(C0.base, A2, "flight", ctx, sameDayMin, { from: A1, to: A2, est }));
-        if (stopover && ctx.overnight) hops.push(makeChain(C0.base, A2, "flight", ctx, 0, { from: A1, to: A2, est }));
+      for (const X of gatewaysNear(ctx, A1)) {
+        if (X.id === A1.id) continue;
+        // a stopover's second flight may leave from the landing airport X or - the low-cost bases - from
+        // another airport a coach ride away (land at Heathrow, coach to Stansted, Ryanair to Venice)
+        for (const Y of stopover ? [X, ...transferAirports(ctx, X)] : [X]) {
+          if (Y.id === A1.id) continue;
+          const est = estimate(ctx, A1, Y);
+          const xfer = Y.id === X.id ? null : airportTransfer(X, Y);
+          if (!est || C0.minutes + est.minutes > flightWindow) continue; // the allowance is for the FLIGHT; the coach is capped by distance
+          const pos = { from: A1, to: Y, est, xfer };
+          hops.push(makeChain(C0.base, X, "flight", ctx, sameDayMin, pos));
+          if (stopover && ctx.overnight) hops.push(makeChain(C0.base, X, "flight", ctx, 0, pos));
+        }
       }
     }
     for (const c of capHopped(hops)) keepBest(best, c);
@@ -507,7 +546,9 @@ function liveNote(q) {
 
 // The airports a trip visits, in flying order: e.g. ["STN", "MXP", "JFK"].
 function routeCodes(pre, A, B, post) {
-  return [pre.pos?.from.code, A.code, B.code, post.pos?.from.code].filter(Boolean);
+  const viaPre = pre.pos && pre.pos.to.id !== A.id ? pre.pos.to.code : null; // landed here, then a coach to A
+  const viaPost = post.pos && post.pos.to.id !== B.id ? post.pos.to.code : null; // coach from B, then flew from here
+  return [pre.pos?.from.code, viaPre, A.code, B.code, viaPost, post.pos?.from.code].filter(Boolean);
 }
 
 function airItinerary(pre, post, opts, ctx) {
@@ -824,7 +865,7 @@ function chooseFlights(it, quoted, valuePerHour = 0) {
     const t2 = parseClock(next.departs);
     if (t1 === null || t2 === null) return { ok: true, extra: 0 };
     if (hotel) return { ok: dayOf(next.departs) > dayOf(prev.arrives), extra: 0 };
-    const need = between.filter((l) => l.kind === "wait").reduce((s, l) => s + l.minutes, 0);
+    const need = between.filter((l) => l.kind === "wait" || l.xfer).reduce((s, l) => s + l.minutes, 0);
     const gap = t2 - t1;
     return gap >= need && gap <= need + MAX_EXTRA_GAP_MIN ? { ok: true, extra: gap - need } : { ok: false };
   };
@@ -1236,7 +1277,7 @@ function pickBaseline(itineraries, opts) {
 }
 
 // One entry per distinct journey (route + hotel pattern), best first.
-const routeKey = (it) => `${it.mode}|${it.pre.pos?.from.id || ""}|${it.jumpOff.id}|${it.landing.id}|${it.post.pos?.from.id || ""}|${it.pre.needsHotel}|${it.post.needsHotel}`;
+const routeKey = (it) => `${it.mode}|${it.pre.pos?.from.id || ""}>${it.pre.pos?.to.id || ""}|${it.jumpOff.id}|${it.landing.id}|${it.post.pos?.from.id || ""}>${it.post.pos?.to.id || ""}|${it.pre.needsHotel}|${it.post.needsHotel}`;
 
 function dedupe(sorted) {
   const seen = new Set();
