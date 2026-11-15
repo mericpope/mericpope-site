@@ -124,8 +124,9 @@ function updatePrefsUi() {
   els.prefcount.textContent = n;
   els.prefcount.hidden = n === 0;
   els.stopoverWrap.hidden = !p.positioningEnd;
-  // a stopover prices the second flight from every hub with a real fare: about 3 more searches (6 with a night)
-  const oneWay = (p.overnight ? 20 : 13) + (p.positioningEnd ? (p.overnight ? 6 : 3) : 0);
+  // a stopover prices the long flight to ~30 gateway hubs, then the second flight from those with a real fare:
+  // about 6 more searches (9 with a night)
+  const oneWay = (p.overnight ? 20 : 13) + (p.positioningEnd ? (p.overnight ? 9 : 6) : 0);
   syncReturn();
   els.costnote.textContent = `About ${p.round ? oneWay * 2 : oneWay} live searches${p.round ? " (both ways)" : ""}`;
 }

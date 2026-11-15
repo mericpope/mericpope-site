@@ -752,14 +752,15 @@ const GROUP_LIMITS = { main: { pairs: 40, airports: 8 }, hubmain: { pairs: 40, a
 // Coverage. "all" (the default) leaves nothing out: every reachable airport and every hub with a real
 // long-haul fare is priced, 8 airports per live search. The smaller settings exist for tests and
 // for keeping a cost ceiling, and are not offered in the page.
+// Stopover (the opt-in flight AFTER the long one): stopOrigins = origin airports the long flight is
+// priced from, stopHubs = stopover hubs priced in round 1, stopHops = hubs whose short flight on to
+// the destination is priced in round 2.
 const COVERAGE = {
-  standard: { hubs: 16, hopHubs: 5, hopStarts: 4, plain: 10, spill: false },
-  wide: { hubs: 48, hopHubs: 5, hopStarts: 4, plain: 10, spill: false },
-  all: { hubs: Infinity, hopHubs: 40, hopStarts: 8, plain: Infinity, spill: true },
+  standard: { hubs: 16, hopHubs: 5, hopStarts: 4, plain: 10, spill: false, stopOrigins: 2, stopHubs: 8, stopHops: 5 },
+  wide: { hubs: 48, hopHubs: 5, hopStarts: 4, plain: 10, spill: false, stopOrigins: 3, stopHubs: 16, stopHops: 8 },
+  all: { hubs: Infinity, hopHubs: 40, hopStarts: 8, plain: Infinity, spill: true, stopOrigins: 3, stopHubs: 30, stopHops: 20 },
 };
 const SMALL_AIRPORTS_PRICED = 8; // tier-3 fields: one batch's worth (they rarely have service)
-const HOP_HUBS = 4; // hub airports to try repositioning flights to AFTER the long flight (opt-in side)
-const HOP_STARTS = 4; // starting airports for repositioning flights AFTER the long flight
 
 // One request per (role, DAY): a repositioning flight before a hotel night flies the day before.
 function newGroup(name, date, round = 1, batch = 0) {
@@ -1006,23 +1007,30 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     groupAdd(groupOf(f, 1, "hubmain", true), f);
   }
 
-  // 3b. Repositioning flights AFTER the long one (opt-in; estimate-ordered, as before).
-  // Trips with a hotel night fly their hop on a different day, so they get their own grid.
-  for (const [side, hotel] of [["post", false], ["post", true]]) {
-    const ofSide = hopped.filter((i) => i[side].pos && !!i[side].hotel === hotel);
-    const hubs = [];
-    for (const it of ofSide) {
-      if (hubs.length >= HOP_HUBS) break;
-      if (!hubs.includes(it.jumpOff.id === it[side].end.id ? it[side].end.id : it[side].end.id)) hubs.push(it[side].end.id);
-    }
-    const starts = [...new Map(ofSide.map((i) => [i[side].pos.from.id, i[side].base.reduce((s, l) => s + l.minutes, 0)])).entries()]
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, HOP_STARTS)
-      .map(([id]) => id);
-    for (const it of ofSide) {
-      if (!hubs.includes(it[side].end.id) || !starts.includes(it[side].pos.from.id)) continue;
-      tryAdd(it, false);
-    }
+  // 3b. STOPOVER: a flight AFTER the long one (opt-in). Same method as before the long flight:
+  //      round 1: price the LONG flight to every gateway hub (London is looked at because it is a
+  //               gateway, not because a model liked it)
+  //      round 2: price the short flight on to the destination from the hubs whose real fare is lowest
+  //    The long flight is priced from the few airports nearest the origin (JFK/LGA/EWR for New York);
+  //    other airports further away still get their direct flight, they just don't get a stopover sweep.
+  const postHops = hopped.filter((i) => i.post.pos);
+  const originOrder = new Map(); // airport id -> ground minutes from the origin (nearest first)
+  for (const it of candidates) {
+    if (it.pre.pos || it.pre.end.tier === 3) continue;
+    if (!originOrder.has(it.pre.end.id) || it.pre.minutes < originOrder.get(it.pre.end.id)) originOrder.set(it.pre.end.id, it.pre.minutes);
+  }
+  const stopOrigins = new Set([...originOrder.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.stopOrigins).map(([id]) => id));
+  const stopHubScore = new Map(); // hub id -> best estimated score (only orders the sweep when it is capped)
+  for (const it of postHops) {
+    if (!stopOrigins.has(it.pre.end.id)) continue;
+    const id = it.post.end.id;
+    if (!stopHubScore.has(id) || it.score < stopHubScore.get(id)) stopHubScore.set(id, it.score);
+  }
+  const stopHubs = new Set([...stopHubScore.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.stopHubs).map(([id]) => id));
+  for (const it of postHops) {
+    if (!stopOrigins.has(it.pre.end.id) || !stopHubs.has(it.post.end.id)) continue;
+    const f = it.legs.find((l) => l.kind === "flight" && l.role === "main");
+    groupAdd(groupOf(f, 1, "hubmain", true), f);
   }
 
   const byKey = new Map();
@@ -1043,7 +1051,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
               if (!Number.isFinite(r?.fare)) continue;
               byKey.set(`${g.date}|${r.from}-${r.to}`, r);
               live.priced++;
-              if (g.name === "main") mainPriced++;
+              if (g.name === "main" || g.name === "hubmain") mainPriced++; // any real long-haul quote shows the provider is working
             }
           } catch (e) {
             live.error = live.error || e?.message || String(e);
@@ -1068,6 +1076,29 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
     }
   }
   for (const f of deferred) if (!(f.date && f.date < today) && groupFits(groupOf(f, 2), f)) groupAdd(groupOf(f, 2), f);
+  // ...the short flight on to the destination, from each stopover hub whose REAL long-haul fare is
+  // lowest (a hub with no real flight from the origin is never offered)...
+  const postFare = new Map(); // hub id -> cheapest real fare to it
+  for (const it of postHops) {
+    const f = it.legs.find((l) => l.kind === "flight" && l.role === "main");
+    const q = byKey.get(`${f.date}|${f.fromCode}-${f.toCode}`);
+    if (q && (!postFare.has(it.post.end.id) || q.fare < postFare.get(it.post.end.id))) postFare.set(it.post.end.id, q.fare);
+  }
+  const bestStopHubs = new Set([...postFare.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.stopHops).map(([id]) => id));
+  const destOrder = new Map(); // airport near the destination -> ground minutes to it
+  for (const it of postHops) {
+    const m = it.post.base.reduce((s, l) => s + l.minutes, 0);
+    if (!destOrder.has(it.post.pos.from.id) || m < destOrder.get(it.post.pos.from.id)) destOrder.set(it.post.pos.from.id, m);
+  }
+  const bestDest = new Set([...destOrder.entries()].sort((a, b) => a[1] - b[1]).slice(0, cov.hopStarts).map(([id]) => id));
+  for (const it of postHops) {
+    if (!bestStopHubs.has(it.post.end.id) || !bestDest.has(it.post.pos.from.id)) continue;
+    const main = it.legs.find((l) => l.kind === "flight" && l.role === "main");
+    if (!byKey.has(`${main.date}|${main.fromCode}-${main.toCode}`)) continue; // no real long flight to this hub from here
+    const hop = it.legs.find((l) => l.kind === "flight" && l.side === "post");
+    if (hop.date && hop.date < today) continue;
+    groupAdd(groupOf(hop, 2, "post", true), hop);
+  }
   // ...and the short flight to each hub whose REAL long-haul fare is lowest. (A hub with no real
   // long-haul flight is never offered, so nothing like Shannon to Newark can appear.)
   const hubFare = new Map(); // hubId -> cheapest real long-haul fare found from it
