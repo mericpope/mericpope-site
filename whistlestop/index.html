@@ -74,6 +74,19 @@
           </label>
         </div>
 
+        <div class="group-row" id="groupRow" hidden>
+          <div class="tt" role="radiogroup" aria-label="Where everyone starts">
+            <label><input type="radio" name="groupmode" value="same" checked /><span>Same start</span></label>
+            <label><input type="radio" name="groupmode" value="split" /><span>Different starts</span></label>
+          </div>
+          <div class="split-fields" id="splitFields" hidden>
+            <label class="fbox small"><span class="flabel">Traveller 1 (the From box above) — name, optional</span><span class="fline"><input id="name1" type="text" placeholder="Name" autocomplete="off" /></span></label>
+            <label class="fbox"><span class="flabel">Traveller 2 starts in</span><span class="fline"><input id="from2" type="text" placeholder="City, airport or station" autocomplete="off" /></span></label>
+            <label class="fbox small"><span class="flabel">Traveller 2 — name, optional</span><span class="fline"><input id="name2" type="text" placeholder="Name" autocomplete="off" /></span></label>
+            <label class="switchrow"><span><b>Traveller 2 can host</b><small>A night at their place costs nothing. Whistlestop compares travelling separately with everyone meeting where traveller 2 lives, then flying on together.</small></span><input id="hosts2" type="checkbox" role="switch" /><i class="track"></i></label>
+          </div>
+        </div>
+
         <div class="opts-row">
           <div class="stepper">
             <div>

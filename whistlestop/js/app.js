@@ -1,4 +1,5 @@
 import { search, searchRoundTrip, returnLeg } from "./engine.js";
+import { planGroup } from "./group.js";
 import { HUBS, LINKS } from "./data/hubs.js";
 import { suggest } from "./places.js";
 import { attachCombobox } from "./combobox.js";
@@ -13,6 +14,7 @@ const els = {
   value: $("value"), cents: $("cents"),
   go: $("go"), status: $("status"), notice: $("notice"), results: $("results"), summary: $("summary"), recent: $("recent"),
   rdate: $("rdate"), returnBox: $("returnBox"), roundbar: $("roundbar"), travellers: $("travellers"), stay: $("stay"), stayWrap: $("stayWrap"),
+  groupRow: $("groupRow"), splitFields: $("splitFields"), from2: $("from2"), name1: $("name1"), name2: $("name2"), hosts2: $("hosts2"),
   prefs: $("prefs"), prefcount: $("prefcount"), costnote: $("costnote"), livepill: $("livepill"),
   vSearch: $("view-search"), vResults: $("view-results"), vTrip: $("view-trip"),
 };
@@ -26,6 +28,7 @@ const getSuggestions = (text, signal) => suggest(text, HUBS, { signal });
 const fromBox = attachCombobox(els.from, { getSuggestions });
 const toBox = attachCombobox(els.to, { getSuggestions });
 const stayBox = attachCombobox(els.stay, { getSuggestions });
+const from2Box = attachCombobox(els.from2, { getSuggestions });
 const toPoint = (s) => ({ name: s.label, lat: s.lat, lon: s.lon, cc: s.cc });
 
 let places = null; // { origin, destination } once resolved
@@ -106,6 +109,7 @@ function prefState() {
     bags: radio("bags") || "personal", overnight: els.overnight.checked, positioning: els.positioning.checked, positioningEnd: els.positioningEnd.checked, stopoverHours: els.stopoverHours.value,
     owncar: els.owncar.checked, value: els.value.value, cents: els.cents.value, rank: radio("rank") || "cash",
     round: radio("triptype") === "round", rdate: els.rdate.value, travellers: els.travellers.value, stay: els.stay.value,
+    groupSplit: radio("groupmode") === "split", from2: els.from2.value, name1: els.name1.value, name2: els.name2.value, hosts2: els.hosts2.checked,
   };
 }
 
@@ -129,15 +133,27 @@ function updatePrefsUi() {
   // a stopover prices the long flight to ~30 gateway hubs, then the second flight from those with a real fare:
   // about 8 more searches (14 with a night)
   const oneWay = (p.overnight ? 20 : 13) + (p.positioningEnd ? (p.overnight ? 14 : 8) : 0);
+  // people starting in different places: only offered for 2+ travellers, one way
+  const many = +p.travellers >= 2;
+  els.groupRow.hidden = !many;
+  const split = many && p.groupSplit;
+  els.splitFields.hidden = !split;
+  if (split) {
+    els.travellers.value = "2"; // the planner compares two starting places
+    if (p.round) setRadio("triptype", "one");
+  }
+  els.travellers.disabled = split;
+  document.querySelectorAll('input[name="triptype"]').forEach((r) => { r.disabled = split && r.value === "round"; });
   syncReturn();
-  els.costnote.textContent = `About ${p.round ? oneWay * 2 : oneWay} live searches${p.round ? " (both ways)" : ""}`;
+  // a group search = the far traveller (with a stopover) + each local traveller alone + the meeting trip
+  els.costnote.textContent = split ? `About ${oneWay + 9} live searches (two starting places)` : `About ${p.round ? oneWay * 2 : oneWay} live searches${p.round ? " (both ways)" : ""}`;
 }
 
 function saveForm() {
   try {
     localStorage.setItem(STORE, JSON.stringify({
       from: els.from.value, to: els.to.value, date: els.date.value, before: els.before.value, after: els.after.value,
-      ...prefState(), modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place, stayPlace: stayBox.place,
+      ...prefState(), modes: modes(), fromPlace: fromBox.place, toPlace: toBox.place, stayPlace: stayBox.place, from2Place: from2Box.place,
     }));
   } catch { /* storage optional */ }
   updatePrefsUi();
@@ -160,6 +176,9 @@ function restoreForm() {
     if ([...els.travellers.options].some((o) => o.value === String(s.travellers))) els.travellers.value = String(s.travellers);
     els.stay.value = s.stay ?? "";
     if (s.stayPlace && s.stay) stayBox.setPlace(s.stayPlace);
+    setRadio("groupmode", s.groupSplit ? "split" : "same");
+    els.from2.value = s.from2 ?? ""; els.name1.value = s.name1 ?? ""; els.name2.value = s.name2 ?? ""; els.hosts2.checked = !!s.hosts2;
+    if (s.from2Place && s.from2) from2Box.setPlace(s.from2Place);
     if (s.rdate && s.rdate >= els.date.value) els.rdate.value = s.rdate;
     els.overnight.checked = !!s.overnight; els.positioning.checked = s.positioning !== false; els.positioningEnd.checked = s.positioningEnd === true; els.owncar.checked = !!s.owncar;
     if ([...els.stopoverHours.options].some((o) => o.value === String(s.stopoverHours))) els.stopoverHours.value = String(s.stopoverHours);
@@ -784,8 +803,74 @@ document.addEventListener("click", (e) => {
   renderRound();
 });
 
+// ---------- people in different places: compare travelling separately with meeting ----------
+let groupState = null; // { g, query }
+
+function groupRaw(query) {
+  return {
+    ...query,
+    travellers: undefined,
+    people: [
+      { name: els.name1.value.trim() || "Traveller 1", origin: places.origin },
+      { name: els.name2.value.trim() || "Traveller 2", origin: places.origin2, hosts: els.hosts2.checked },
+    ],
+  };
+}
+
+const planPerson = (p) => `<div class="plan-person"><b>${esc(p.name)}</b><span>${esc(p.route)}${p.ground ? ` · ${esc(p.ground.label)} ${dur(p.ground.minutes)}, ~${money(p.ground.cost)}` : ""}</span><b>${money(p.cost)}</b></div>`;
+
+function planHtml(plan, i, g, isTop) {
+  const sep = g.separate;
+  const diff = sep && plan !== sep ? sep.total - plan.total : null;
+  const vs = diff === null ? "" : diff > 0 ? `<span class="plan-vs good">saves ${money(diff)} vs travelling separately</span>` : diff < 0 ? `<span class="plan-vs">${money(-diff)} more than travelling separately</span>` : `<span class="plan-vs">same as travelling separately</span>`;
+  const sf = plan.sharedFlight;
+  const shared = sf ? `<div class="plan-shared">One shared flight ${esc(sf.from)} → ${esc(sf.to)}${sf.airline ? ` · ${esc(sf.airline)}` : ""}${sf.flightNumber ? ` ${esc(sf.flightNumber)}` : ""}${sf.departs ? ` · leaves ${esc(sf.departs.slice(11, 16))}` : ""} · ${money(sf.fare)} for ${sf.seats} seats, split evenly below. ${esc(plan.perPerson[0].name)} lands at ${esc(plan.landsAt)}${plan.landsAt !== plan.meetAirport ? ` and takes a coach to ${esc(plan.meetAirport)}` : ""}.</div>` : "";
+  return `<section class="plan${isTop ? " top" : ""}">
+    <div class="plan-head"><div><b>${isTop ? "Cheapest: " : ""}${esc(plan.label)}</b><br>${vs}</div><span class="plan-total">${money(plan.total)}</span></div>
+    ${shared}
+    <div class="plan-people">${plan.perPerson.map(planPerson).join("")}</div>
+    <div class="plan-foot"><button type="button" data-group-trip="${i}">View ${esc(plan.perPerson[0].name)}’s trip ${I.chev}</button></div>
+  </section>`;
+}
+
+function renderGroup() {
+  const { g, query } = groupState;
+  const names = g.people.join(" + ");
+  els.roundbar.innerHTML = "";
+  els.summary.innerHTML = `<div class="facts"><b>${esc(names)} → ${esc(shortName(query.destination))}</b><span class="sep"></span><span>${esc(dayLabel(query.date))}</span><span class="sep"></span><span>${esc(BAG_LABEL[query.bags])}</span></div><button type="button" class="pillbtn" data-edit>${I.edit}Edit search</button>`;
+  const far = g.runs.far;
+  if (LIVE_PROVIDER_URL && !far.live?.active) {
+    els.notice.innerHTML = noticeHtml(far);
+    els.results.innerHTML = "";
+    return;
+  }
+  els.notice.innerHTML = `<details class="notice ok"><summary><b>Live prices.</b> ${g.live.calls} live requests for the whole group.</summary><p>Every flight is a real quote. The shared flight is priced for all seats at once. Taxis, coaches, trains and any hotel without a live rate are estimates.</p></details>${g.notes.map((n) => `<div class="notice">${esc(n)}</div>`).join("")}`;
+  if (!g.plans.length) {
+    els.results.innerHTML = `<div class="notice"><b>No plans found.</b> ${g.notes.map(esc).join(" ") || "Try more hours or allow an overnight stay."}</div>`;
+    return;
+  }
+  // the trip detail screen opens the travelling traveller's itinerary for a plan
+  const items = g.plans.map((p) => p.perPerson[0].itinerary);
+  view = { res: far, query: { ...query, origin: places.origin }, items, filter: "all", sort: "price", showAll: false, trip: null };
+  els.results.innerHTML = `<div class="plans">${g.plans.map((p, i) => planHtml(p, i, g, i === 0)).join("")}</div>
+    <div class="fineprint">One way only for now. Meeting plans use the city traveller 2 lives in; travelling separately lets everyone use any route.${g.meetingCity ? "" : " Meeting needs everyone except the person travelling furthest to start in the same city."}</div>`;
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-group-trip]");
+  if (t && groupState) openTrip(Number(t.dataset.groupTrip));
+});
+
 async function runSearch() {
   const query = queryFromForm();
+  if (places.origin2) {
+    const deps = LIVE_PROVIDER_URL ? { livePrices, liveHotel } : {};
+    round = null;
+    groupState = { g: await planGroup(groupRaw(query), DATA, deps), query };
+    renderGroup();
+    return;
+  }
+  groupState = null;
   const deps = LIVE_PROVIDER_URL ? { livePrices, liveHotel } : {};
   if (query.returnDate) {
     const rt = await searchRoundTrip(query, DATA, deps);
@@ -815,7 +900,12 @@ els.form.addEventListener("submit", async (e) => {
     if (els.positioningEnd.checked && els.stay.value.trim()) {
       try { stay = toPoint(await stayBox.resolve()); } catch { setStatus("Couldn’t find the place you can stay for free, so hotel nights are counted as usual."); }
     }
-    places = { origin, destination, stay };
+    let origin2 = null;
+    if (radio("groupmode") === "split" && +els.travellers.value >= 2) {
+      if (!els.from2.value.trim()) throw new Error("Enter where traveller 2 starts.");
+      origin2 = toPoint(await from2Box.resolve());
+    }
+    places = { origin, destination, stay, origin2 };
     setStatus(radio("triptype") === "round" ? "Checking every reachable airport, both ways — this can take a moment…" : "Checking every reachable airport — this can take a moment…");
     await runSearch();
     setStatus("");

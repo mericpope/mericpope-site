@@ -73,6 +73,11 @@ export function normalize(input) {
     stopoverSide: input.stopoverSide === "start" ? "start" : "end",
     // How many people travel together (same start). Live fares are priced for that many seats.
     travellers: Math.round(clamp(input.travellers, 1, 6, 1)),
+    // Seats on the stopover's SECOND flight, when more people join it than flew the long leg (a friend who
+    // lives at the stopover joins there). Defaults to the same party.
+    hopTravellers: Math.round(clamp(input.hopTravellers ?? input.travellers, 1, 6, 1)),
+    // Only consider stopovers inside this circle (the city a friend lives in): { lat, lon, km }
+    stopoverNear: input.stopoverNear && Number.isFinite(input.stopoverNear.lat) && Number.isFinite(input.stopoverNear.lon) && input.stopoverNear.km > 0 ? { lat: input.stopoverNear.lat, lon: input.stopoverNear.lon, km: input.stopoverNear.km } : null,
     // Somewhere you can sleep for free (home, friends) - a night within FREE_STAY_KM of it costs nothing.
     freeStay: input.freeStay && Number.isFinite(input.freeStay.lat) && Number.isFinite(input.freeStay.lon) ? { name: String(input.freeStay.name || "your place"), lat: input.freeStay.lat, lon: input.freeStay.lon } : null, // "start" on a return trip: the hop is the FIRST flight
     overnight: !!input.overnight,
@@ -113,6 +118,7 @@ function buildContext(data, opts) {
     positioningEnd: opts.positioningEnd && opts.modes.has("air"),
     overnight: opts.overnight,
     freeStay: opts.freeStay,
+    stopoverNear: opts.stopoverNear,
     travellers: opts.travellers,
     date: opts.date,
     ownCar: opts.ownCar,
@@ -438,10 +444,12 @@ function chainsToAirports(point, windowMin, noHotelMin, ctx, allowHop, hopMin = 
       const A1 = C0.end;
       for (const X of gatewaysNear(ctx, A1)) {
         if (X.id === A1.id) continue;
+        if (stopover && ctx.stopoverNear && haversineKm(ctx.stopoverNear, X) > ctx.stopoverNear.km) continue;
         // a stopover's second flight may leave from the landing airport X or - the low-cost bases - from
         // another airport a coach ride away (land at Heathrow, coach to Stansted, Ryanair to Venice)
         for (const Y of stopover ? [X, ...transferAirports(ctx, X)] : [X]) {
           if (Y.id === A1.id) continue;
+          if (stopover && ctx.stopoverNear && haversineKm(ctx.stopoverNear, Y) > ctx.stopoverNear.km) continue;
           const est = estimate(ctx, A1, Y);
           const xfer = Y.id === X.id ? null : airportTransfer(X, Y);
           if (!est || C0.minutes + est.minutes > flightWindow) continue; // the allowance is for the FLIGHT; the coach is capped by distance
@@ -658,7 +666,7 @@ export async function search(rawInput, data, deps = {}) {
   const byScore = (x, y) => x.score - y.score || x.travelMinutes - y.travelMinutes;
   if (deps.livePrices) await refineFlights(itineraries, opts, ctx, deps, live);
   if (deps.liveHotel) await refineHotels(itineraries, opts, ctx, deps, live);
-  if (opts.travellers > 1) for (const it of itineraries) partyScale(it, opts);
+  if (opts.travellers > 1 || opts.hopTravellers > 1) for (const it of itineraries) partyScale(it, opts);
 
   itineraries.sort(byScore);
 
@@ -983,19 +991,22 @@ function attachTimes(it) {
 // priced for every seat by the provider. A taxi or a hotel room is shared (4 to a car, 2 to a room);
 // coaches, trains, taxes and estimated flights are per person.
 function partyScale(it, opts) {
-  const n = opts.travellers;
-  const cars = Math.ceil(n / 4);
-  const rooms = Math.ceil(n / 2);
-  const factor = (l) => {
-    if (l.kind === "flight") return l.source === "live" ? 1 : n;
-    if (l.kind === "tax") return n;
-    if (l.kind === "hotel") return l.source === "free" ? 1 : rooms;
-    if (l.kind === "rail" || l.kind === "bus" || l.kind === "ferry") return n;
-    if (l.kind === "ground") return l.xfer ? n : cars;
+  const n = opts.travellers; // seats on the long flight and everything before the second flight
+  const m = opts.hopTravellers; // seats on the stopover's second flight and everything after it
+  const lastFlight = it.legs.map((l, i) => (l.kind === "flight" ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
+  const hopIdx = it.legs.findIndex((l) => l.kind === "flight" && l.side === "post");
+  const factor = (l, i) => {
+    const after = hopIdx >= 0 && i >= hopIdx; // from the second flight onwards the whole group travels
+    const p = after ? m : n;
+    if (l.kind === "flight") return l.source === "live" ? 1 : p;
+    if (l.kind === "tax") return String(l.forFlight || "").startsWith("post:") ? m : n;
+    if (l.kind === "hotel") return l.source === "free" ? 1 : Math.ceil(n / 2);
+    if (l.kind === "rail" || l.kind === "bus" || l.kind === "ferry") return p;
+    if (l.kind === "ground") return l.xfer ? n : Math.ceil(p / 4);
     return 1;
   };
-  it.legs = it.legs.map((l) => {
-    const k = factor(l);
+  it.legs = it.legs.map((l, i) => {
+    const k = factor(l, i);
     return k === 1 || !l.cost ? l : { ...l, cost: round2(l.cost * k) };
   });
   attachPoints(it, { date: opts.date });
@@ -1125,7 +1136,7 @@ async function refineFlights(itineraries, opts, ctx, deps, live) {
           live.calls++;
           try {
             // `group` lets the caller tune cost: only the main flight is worth gap-fill lookups
-            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, batch: g.batch, bags: cabinBags(opts), travellers: opts.travellers });
+            const rows = await deps.livePrices([...g.pairs.values()], g.date || ctx.date, { group: g.name, round: g.round, batch: g.batch, bags: cabinBags(opts), travellers: g.name === "post" ? opts.hopTravellers : opts.travellers });
             const got = new Set((rows || []).filter((r) => Number.isFinite(r?.fare)).map((r) => `${r.from}-${r.to}`));
             for (const p of g.pairs.values()) if (!got.has(`${p.from}-${p.to}`)) live.unpriced.push(`${p.from}>${p.to}`);
             for (const r of rows || []) {
