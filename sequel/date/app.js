@@ -331,7 +331,7 @@ async function signinView(linkToken) {
 // Section 0 is the overview; "The basics" were answered when joining.
 const SECTIONS = [
   { title: 'What you’re looking for', sub: 'Relationship, timing, age range', mins: 1 },
-  { title: 'Life and future', sub: 'Kids, where you’re heading', mins: 1 },
+  { title: 'Life and future', sub: 'Kids, where you’re heading, faith and politics', mins: 2 },
   { title: 'Lifestyle', sub: 'Drinking, weekends, pets', mins: 1 },
   { title: 'How you date', sub: 'A good date, free time, budget', mins: 2 },
   { title: 'In a relationship', sub: 'How you show care, texting', mins: 1 },
@@ -415,7 +415,16 @@ async function setupView(step, editing) {
         <select class="input" id="travel" name="travel_mins">${[15, 30, 45, 60, 90].map((m) => `<option value="${m}" ${Number(a.travel_mins || 45) === m ? 'selected' : ''}>Up to ${m} minutes</option>`).join('')}</select></div>
       <div class="notice">${icon.shield}<span>These are firm: you’ll only be matched with people who fit them, and who you fit too.</span></div>`;
   } else if (step === 2) {
-    body = `<h1>Where is life heading?</h1>${['kids', 'date_with_kids', 'five_years', 'last_relationship'].map((k) => choice(c, k, a)).join('')}`;
+    body = `<h1>Where is life heading?</h1>${['kids', 'date_with_kids', 'five_years', 'last_relationship'].map((k) => choice(c, k, a)).join('')}
+      <div class="divider"></div>
+      <div class="stack" style="gap:6px"><h2>Faith and politics</h2>
+        <p class="muted">Optional. Your answers to “Faith” and “Politics” show on your profile; choose “Prefer not to say” to keep them off. How much they matter to you stays private.</p></div>
+      ${choice(c, 'faith', a, { list: true })}
+      <div class="field"><label for="faith-name">Your faith, if you’d like to name it <span class="muted" style="font-weight:400">Optional</span></label>
+        <input class="input" id="faith-name" name="faith_name" maxlength="40" value="${esc(a.faith_name || '')}" placeholder="Christian, Muslim, Jewish, Hindu…"></div>
+      ${choice(c, 'faith_match', a)}
+      ${choice(c, 'politics', a, { list: true })}
+      ${choice(c, 'politics_match', a)}`;
   } else if (step === 3) {
     body = `<h1>A typical week</h1>${['drinking', 'smoking', 'cannabis', 'exercise', 'weekends', 'rhythm', 'pets'].map((k) => choice(c, k, a)).join('')}`;
   } else if (step === 4) {
@@ -490,7 +499,7 @@ async function setupView(step, editing) {
         payload.answers = { ...pick('looking_for', 'serious_when'), age_min: Number(f.age_min), age_max: Number(f.age_max), travel_mins: Number(f.travel_mins) };
       } else if (step === 2) {
         if (!f.kids) throw new ApiError('Please answer the question about kids.');
-        payload.answers = pick('kids', 'date_with_kids', 'five_years', 'last_relationship');
+        payload.answers = { ...pick('kids', 'date_with_kids', 'five_years', 'last_relationship', 'faith', 'faith_match', 'politics', 'politics_match'), faith_name: f.faith_name };
       } else if (step === 3) {
         payload.answers = pick('drinking', 'smoking', 'cannabis', 'exercise', 'weekends', 'rhythm', 'pets');
       } else if (step === 4) {
@@ -1301,6 +1310,8 @@ async function adminUserView(id) {
     ['Ages, travel', `${a.age_min || '?'}–${a.age_max || '?'} · up to ${a.travel_mins || '?'} min`],
     ['Kids', `${pq('kids')} · dates parents: ${pq('date_with_kids')}`],
     ['Five years · last relationship', `${pq('five_years')} · ${pq('last_relationship')} (private)`],
+    ['Faith', `${pq('faith')}${a.faith_name ? ` (${a.faith_name})` : ''} · matters: ${pq('faith_match')}`],
+    ['Politics', `${pq('politics')} · matters: ${pq('politics_match')}`],
     ['Lifestyle', ['drinking', 'smoking', 'cannabis', 'exercise', 'weekends', 'rhythm', 'pets'].map((k) => `${c.PROFILE_Q[k].q.toLowerCase()}: ${pq(k)}`).join(' · ')],
     ['Free', many(c.FREE, a.free)],
     ['Relationship', `care: ${many(c.CARE, a.care)} · together: ${pq('together')} · disagree: ${pq('disagree')} · texting: ${pq('texting')}`],
@@ -1329,10 +1340,11 @@ async function adminUserView(id) {
     </section>
     <section class="stack">
       <h2>Suggested matches</h2>
-      <p class="muted small">People who pass every firm filter both ways (who they want to meet, age ranges, what they’re looking for, kids), not blocked and never matched before, ranked by shared taste and free times.</p>
+      <p class="muted small">People who pass every firm filter both ways (who they want to meet, age ranges, what they’re looking for, kids), not blocked and never matched before, ranked by shared taste and free times. Faith and politics clashes lower the score and are shown in red.</p>
       ${candidates.length ? candidates.map((x) => `
         <div class="card"><div class="spread"><strong>${esc(x.name)}, ${x.age} · ${esc(x.city)}</strong><span class="tag ${x.score >= 5 ? 'wine' : ''}">score ${x.score}</span></div>
           <p class="small muted">${x.loves.length ? `Both love ${x.loves.map(esc).join(', ')}. ` : ''}${x.favourites.length ? `Both named ${x.favourites.map(esc).join(', ')}. ` : ''}${x.sameValues ? 'Same idea of a good date. ' : ''}${x.free.length ? `Both free ${x.free.map((f) => esc(f.toLowerCase())).join(', ')}. ` : ''}Reliability ${x.reliability}.</p>
+          ${x.flags.length ? `<p class="small" style="color:var(--danger)">${x.flags.map(esc).join('. ')}.</p>` : ''}
           <div class="row"><a class="linkish" href="#/admin/user/${x.id}">Open ${esc(x.name)}</a><button class="btn small" data-match="${x.id}">Match with a first date</button></div>
           <div data-match-form="${x.id}"></div></div>`).join('') : '<p class="muted">Nobody suitable yet.</p>'}
       ${filteredOut.length ? `<details class="card"><summary style="cursor:pointer">Left out by firm filters (${filteredOut.length})</summary>
