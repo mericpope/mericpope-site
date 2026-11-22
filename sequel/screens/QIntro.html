@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Questionnaire overview</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8A2A4B}a:hover{color:#6A1F39}
+.sec{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #EAE3DB}
+.sec:last-child{border-bottom:none}
+.n{flex-shrink:0;width:28px;height:28px;border-radius:14px;background:#F1ECE6;color:#3D3842;font:600 13px Inter,sans-serif;display:flex;align-items:center;justify-content:center}
+.n.done{background:#8A2A4B;color:#fff}
+.st{flex:1;margin:0;font:600 15px/1.25 Inter,sans-serif;color:#1C1A1F}
+.ss{margin:2px 0 0;font:400 12px Inter,sans-serif;color:#5F5966}
+.t{font:500 12px Inter,sans-serif;color:#5F5966}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FBF8F4; font-family: Inter, sans-serif; color: #1C1A1F; display: flex; flex-direction: column; padding: 56px 24px 28px">
+  <p style="margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: #8A2A4B">Welcome, Robin</p>
+  <h1 style="margin: 10px 0 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 28px; line-height: 1.1; letter-spacing: -0.01em">Let’s get to know you properly</h1>
+  <p style="margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: #5F5966">Eight short sections, about 10 minutes, mostly taps. Stop any time and carry on later.</p>
+
+  <div style="margin-top: 18px; background: #FFFFFF; border: 1px solid #EAE3DB; border-radius: 20px; padding: 6px 16px">
+    <div class="sec"><span class="n done"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></span><div style="flex:1"><p class="st">The basics</p><p class="ss">Name, age, who you’d like to meet</p></div><span class="t">Done</span></div>
+    <div class="sec"><span class="n">2</span><div style="flex:1"><p class="st">What you’re looking for</p><p class="ss">Relationship, timing, age range</p></div><span class="t">1 min</span></div>
+    <div class="sec"><span class="n">3</span><div style="flex:1"><p class="st">Life and future</p><p class="ss">Kids, faith, politics</p></div><span class="t">1 min</span></div>
+    <div class="sec"><span class="n">4</span><div style="flex:1"><p class="st">Lifestyle</p><p class="ss">Drinking, weekends, pets</p></div><span class="t">1 min</span></div>
+    <div class="sec"><span class="n">5</span><div style="flex:1"><p class="st">How you date and love</p><p class="ss">Free time, how you show care</p></div><span class="t">2 min</span></div>
+    <div class="sec"><span class="n">6</span><div style="flex:1"><p class="st">Your secret wishlist</p><p class="ss">Never shown to anyone</p></div><span class="t">1 min</span></div>
+    <div class="sec"><span class="n">7</span><div style="flex:1"><p class="st">What you love</p><p class="ss">The things you’d talk about all night</p></div><span class="t">2 min</span></div>
+    <div class="sec"><span class="n">8</span><div style="flex:1"><p class="st">Photos and prompts</p><p class="ss">What your match sees first</p></div><span class="t">2 min</span></div>
+  </div>
+
+  <div style="margin-top: 14px; display: flex; gap: 10px; align-items: flex-start">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F5966" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    <span style="font-size: 13px; line-height: 1.45; color: #5F5966">Anything marked private is only used for matching and planning, never shown on your profile.</span>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <button style="flex-shrink: 0; height: 54px; border: none; border-radius: 27px; background: #1C1A1F; color: #FFFFFF; font: 600 16px Inter, sans-serif; cursor: pointer">Continue</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Post-date check-in</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8A2A4B}a:hover{color:#6A1F39}
+.q{font:600 15px/1.3 Inter,sans-serif;color:#1C1A1F;margin:0}
+.seg{display:flex;gap:8px}
+.opt{flex:1;min-height:46px;border:1.5px solid #E4DCD3;background:#FFFFFF;border-radius:14px;font:500 14px Inter,sans-serif;color:#1C1A1F;cursor:pointer;padding:0 6px}
+.opt.on{background:#F6E6EC;border-color:#8A2A4B;color:#5E1A33;font-weight:600}
+.sec{font:600 12px Inter,sans-serif;letter-spacing:0.08em;text-transform:uppercase;color:#6E6875;margin:0}
+.chipq{font:500 13px Inter,sans-serif;color:#3D3842;background:#FFFFFF;border:1.5px solid #E4DCD3;border-radius:999px;padding:0 12px;min-height:36px;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 390px; height: 1460px; box-sizing: border-box; background: #FBF8F4; font-family: Inter, sans-serif; color: #1C1A1F; display: flex; flex-direction: column; padding: 56px 24px 28px">
+  <p style="margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: #8A2A4B">Check-in · 3 minutes</p>
+  <h1 style="margin: 10px 0 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 30px; line-height: 1.12; letter-spacing: -0.01em">How was your date with Sam?</h1>
+  <p style="margin: 8px 0 0; font-size: 14px; color: #5F5966">Thursday · [Show] at [Venue]</p>
+
+  <div style="margin-top: 16px; background: #F1ECE6; border-radius: 16px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3D3842" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    <span style="font-size: 13px; line-height: 1.45; color: #3D3842">Your answers stay private. Sam only learns whether you <strong>both</strong> said yes, plus any note you choose to send.</span>
+  </div>
+
+  <p class="sec" style="margin-top: 26px">The date</p>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px">
+    <p class="q">Did the date happen?</p>
+    <div class="seg">
+      <button class="opt on" aria-pressed="true">Yes</button>
+      <button class="opt" aria-pressed="false">They didn't show</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px">
+    <p class="q">Did they match their profile?</p>
+    <div class="seg">
+      <button class="opt on" aria-pressed="true">Yes</button>
+      <button class="opt" aria-pressed="false">Mostly</button>
+      <button class="opt" aria-pressed="false">No</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px">
+    <p class="q">How did you feel around Sam?</p>
+    <div class="seg">
+      <button class="opt on" aria-pressed="true">At ease</button>
+      <button class="opt" aria-pressed="false">A bit unsure</button>
+      <button class="opt" aria-pressed="false">Uneasy</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px">
+    <p class="q">How was the conversation?</p>
+    <div class="seg">
+      <button class="opt on" aria-pressed="true">It flowed</button>
+      <button class="opt" aria-pressed="false">Some pauses</button>
+      <button class="opt" aria-pressed="false">Hard work</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px">
+    <p class="q">Did the plan suit you?</p>
+    <div class="seg">
+      <button class="opt on" aria-pressed="true">Loved it</button>
+      <button class="opt" aria-pressed="false">It was fine</button>
+      <button class="opt" aria-pressed="false">Not for me</button>
+    </div>
+  </div>
+
+  <p class="sec" style="margin-top: 28px">What's next</p>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px">
+    <p class="q">Would you see Sam again?</p>
+    <div class="seg">
+      <button class="opt on" aria-pressed="true">Yes</button>
+      <button class="opt" aria-pressed="false">Not sure</button>
+      <button class="opt" aria-pressed="false">No</button>
+    </div>
+  </div>
+
+  <label for="private" style="margin-top: 22px; font-size: 15px; font-weight: 600">Anything we should learn? <span style="font-weight: 400; color: #5F5966">Optional</span></label>
+  <textarea id="private" rows="2" placeholder="Only used to improve your matches. Sam never sees it." style="margin-top: 8px; font: 14px/1.4 Inter, sans-serif; padding: 12px 14px; border: 1.5px solid #E4DCD3; border-radius: 14px; background: #FFFFFF; color: #1C1A1F; resize: none; outline: none"></textarea>
+
+  <div style="margin-top: 26px; background: #FFFFFF; border: 1.5px solid #8A2A4B; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A2A4B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>
+      <label for="tosam" style="font-size: 15px; font-weight: 600">Leave Sam a note <span style="font-weight: 400; color: #5F5966">Optional</span></label>
+    </div>
+    <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #5F5966">Sam sees it alongside the result, whatever you both chose. Keep it kind.</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <button class="chipq">Thanks for Thursday</button>
+      <button class="chipq">Loved your pick</button>
+      <button class="chipq">Good luck out there</button>
+    </div>
+    <textarea id="tosam" rows="3" style="font: 14px/1.4 Inter, sans-serif; padding: 12px 14px; border: 1.5px solid #E4DCD3; border-radius: 14px; background: #FBF8F4; color: #1C1A1F; resize: none; outline: none">Thanks for Thursday. Still thinking about your take on the second act.</textarea>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 24px"></div>
+  <button style="height: 54px; border: none; border-radius: 27px; background: #1C1A1F; color: #FFFFFF; font: 600 16px Inter, sans-serif; cursor: pointer">Send check-in</button>
+  <a href="#" style="margin-top: 10px; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 600; color: #A3341F; text-decoration: none">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    I felt unsafe: leave and report
+  </a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1460}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

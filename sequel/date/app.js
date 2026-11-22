@@ -135,6 +135,7 @@ function shell(inner, { wide = false, active = '' } = {}) {
     <main class="page ${wide ? 'wide' : ''}" id="main">${inner}</main>
     <footer class="footer"><div class="footer-in">
       <span>Sequel is invite-only while we test it with friends.</span>
+      <a href="../">How Sequel works</a>
       <a href="#/privacy">Privacy and safety</a>
     </div></footer>
   </div>`;

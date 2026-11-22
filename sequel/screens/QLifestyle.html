@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lifestyle</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8A2A4B}a:hover{color:#6A1F39}
+.row{display:flex;flex-direction:column;gap:8px}
+.q{margin:0;font:600 14px/1.3 Inter,sans-serif;color:#1C1A1F}
+.seg{display:flex;gap:6px}
+.opt{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font:500 13px/1.2 Inter,sans-serif;color:#1C1A1F;background:#fff;border:1.5px solid #E4DCD3;border-radius:12px;padding:6px;min-height:44px;cursor:pointer}
+.opt.on{background:#F6E6EC;border-color:#8A2A4B;color:#5E1A33;font-weight:600}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FBF8F4; font-family: Inter, sans-serif; color: #1C1A1F; display: flex; flex-direction: column; padding: 48px 24px 28px">
+  <div style="display: flex; align-items: center; justify-content: space-between">
+    <button aria-label="Back" style="width: 44px; height: 44px; border: none; background: transparent; padding: 0; display: flex; align-items: center; cursor: pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1C1A1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span style="font-size: 13px; color: #5F5966; font-weight: 500">4 of 8 · Lifestyle</span>
+    <span style="width: 44px"></span>
+  </div>
+  <div style="height: 4px; background: #ECE5DD; border-radius: 4px; margin-top: 8px; overflow: hidden"><div style="width: 50%; height: 4px; background: #8A2A4B"></div></div>
+
+  <h1 style="margin: 20px 0 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; line-height: 1.12; letter-spacing: -0.01em">A typical week</h1>
+
+  <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px">
+    <div class="row"><p class="q">Drinking</p><div class="seg"><button class="opt" aria-pressed="false">Don’t drink</button><button class="opt on" aria-pressed="true">Socially</button><button class="opt" aria-pressed="false">Most weeks</button></div></div>
+    <div class="row"><p class="q">Smoking</p><div class="seg"><button class="opt on" aria-pressed="true">Never</button><button class="opt" aria-pressed="false">Sometimes</button><button class="opt" aria-pressed="false">Yes</button></div></div>
+    <div class="row"><p class="q">Cannabis</p><div class="seg"><button class="opt on" aria-pressed="true">Never</button><button class="opt" aria-pressed="false">Sometimes</button><button class="opt" aria-pressed="false">Yes</button></div></div>
+    <div class="row"><p class="q">Exercise</p><div class="seg"><button class="opt" aria-pressed="false">Rarely</button><button class="opt on" aria-pressed="true">Sometimes</button><button class="opt" aria-pressed="false">A lot</button></div></div>
+    <div class="row"><p class="q">Weekends look like</p><div class="seg"><button class="opt" aria-pressed="false">Busy and out</button><button class="opt on" aria-pressed="true">A mix</button><button class="opt" aria-pressed="false">Slow, at home</button></div></div>
+    <div class="row"><p class="q">You’re more of a</p><div class="seg"><button class="opt on" aria-pressed="true">Night owl</button><button class="opt" aria-pressed="false">Either</button><button class="opt" aria-pressed="false">Early riser</button></div></div>
+    <div class="row"><p class="q">Pets</p><div class="seg"><button class="opt" aria-pressed="false">Have one</button><button class="opt on" aria-pressed="true">Love them</button><button class="opt" aria-pressed="false">Not for me</button></div></div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <button style="height: 54px; border: none; border-radius: 27px; background: #1C1A1F; color: #FFFFFF; font: 600 16px Inter, sans-serif; cursor: pointer">Continue</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
