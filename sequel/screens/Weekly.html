@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weekly check</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8A2A4B}a:hover{color:#6A1F39}
+.tag{font:500 13px/1 Inter,sans-serif;color:#3D3842;background:#F1ECE6;border-radius:999px;padding:8px 12px;display:inline-flex;align-items:center;gap:6px}
+.eyebrow{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:#8A2A4B}
+.h1{margin:8px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;line-height:1.1;letter-spacing:-.01em}
+.sub{margin:10px 0 0;font-size:15px;line-height:1.5;color:#5F5966}
+.primary{height:54px;border:none;border-radius:27px;background:#8A2A4B;color:#FFFFFF;font:600 16px Inter,sans-serif;cursor:pointer}
+.secondary{height:50px;border:1.5px solid #E4DCD3;border-radius:25px;background:#FFFFFF;color:#1C1A1F;font:500 15px Inter,sans-serif;cursor:pointer}
+.note{margin:0;font-size:13px;line-height:1.45;color:#5F5966;text-align:center}
+.navbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:transparent;font:500 11px Inter,sans-serif;color:#6E6875;min-height:48px;padding:6px 0;cursor:pointer}
+.navbtn.on{color:#8A2A4B}
+
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FBF8F4; font-family: Inter, sans-serif; color: #1C1A1F; display: flex; flex-direction: column">
+  <div style="padding: 60px 24px 0">
+    <p class="eyebrow">Friday check-in</p>
+    <h1 class="h1">Dating this week?</h1>
+    <p class="sub">Say yes and you'll get up to four dates on Sunday, all at times that work for you.</p>
+  </div>
+
+  <div style="margin: 22px 16px 0; background: #FFFFFF; border: 1px solid #EAE3DB; border-radius: 22px; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between">
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 17px">Your usual week</span>
+      <span style="font-size: 13px; color: #6E6875">Weeknights from 7pm</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 64px repeat(7, 1fr); gap: 6px; align-items: center">
+      <span></span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">M</span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">T</span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">W</span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">T</span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">F</span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">S</span><span style="font-size: 12px; font-weight: 600; color: #6E6875; text-align: center">S</span>
+      <span style="font-size: 13px; color: #3D3842">Daytime</span><span role="img" aria-label="Monday daytime: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span><span role="img" aria-label="Tuesday daytime: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span><span role="img" aria-label="Wednesday daytime: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span><span role="img" aria-label="Thursday daytime: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span><span role="img" aria-label="Friday daytime: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span><span role="img" aria-label="Saturday daytime: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span role="img" aria-label="Sunday daytime: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      <span style="font-size: 13px; color: #3D3842">Evening</span><span role="img" aria-label="Monday evening: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span role="img" aria-label="Tuesday evening: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span><span role="img" aria-label="Wednesday evening: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span role="img" aria-label="Thursday evening: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span role="img" aria-label="Friday evening: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span role="img" aria-label="Saturday evening: free" style="height: 30px; border-radius: 9px; background: #8A2A4B; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span role="img" aria-label="Sunday evening: busy" style="height: 30px; border-radius: 9px; background: #F1ECE6"></span>
+    </div>
+    <p style="margin: 0; font-size: 13px; line-height: 1.45; color: #5F5966">First dates fall Wednesday to Sunday. Later dates can use any day you're free.</p>
+  </div>
+
+  <div style="margin: 14px 16px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px">
+    <div style="background: #F3ECE5; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; font-weight: 600; color: #8A2A4B">Sun 10am</span><span style="font-size: 13px; line-height: 1.35; color: #3D3842">Your shortlist</span></div>
+    <div style="background: #F3ECE5; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; font-weight: 600; color: #8A2A4B">Sun 9pm</span><span style="font-size: 13px; line-height: 1.35; color: #3D3842">Picks close</span></div>
+    <div style="background: #F3ECE5; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; font-weight: 600; color: #8A2A4B">Mon 9am</span><span style="font-size: 13px; line-height: 1.35; color: #3D3842">Your date for the week</span></div>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 22px"></div>
+  <div style="padding: 0 24px 18px; display: flex; flex-direction: column; gap: 10px">
+    <button class="primary">Yes, same as usual</button>
+    <button class="secondary">Change my times for this week</button>
+    <button style="height: 44px; border: none; background: transparent; color: #5F5966; font: 500 15px Inter, sans-serif; cursor: pointer">Not this week</button>
+    <p class="note">No answer by Saturday night means no shortlist this week. You can pause any time from You.</p>
+  </div>
+  <nav aria-label="Main" style="display: flex; border-top: 1px solid #EAE3DB; background: #FFFFFF; padding: 6px 8px 24px">
+    <button class="navbtn on" aria-current="page"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>This week</button>
+    <button class="navbtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>Dates</button>
+    <button class="navbtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chats</button>
+    <button class="navbtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>You</button>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
