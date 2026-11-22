@@ -150,15 +150,19 @@ function photoTag(userId, name, cls = 'avatar') {
   return `<div class="${cls}" data-photo="${esc(userId)}" role="img" aria-label="${esc(name)}">${cls === 'photo-hero' ? icon.person : esc((name || '?').slice(0, 1))}</div>`;
 }
 
+/** The nth photo of a person (0 = main), cached for this page visit. */
+function photoData(id, n = 0) {
+  const key = `${id}:${n}`;
+  if (!photoCache.has(key)) photoCache.set(key, api('GET', `/api/photos/${id}?n=${n}`).then((r) => r.data).catch(() => null));
+  return photoCache.get(key);
+}
+
 async function hydratePhotos() {
   for (const el of $$('[data-photo]')) {
     const id = el.dataset.photo;
-    if (!id || el.dataset.noPhoto) continue;
-    try {
-      if (!photoCache.has(id)) photoCache.set(id, api('GET', `/api/photos/${id}`).then((r) => r.data).catch(() => null));
-      const data = await photoCache.get(id);
-      if (data && el.isConnected) el.innerHTML = `<img src="${data}" alt="">`;
-    } catch { /* keep the initial */ }
+    if (!id) continue;
+    const data = await photoData(id, Number(el.dataset.n) || 0);
+    if (data && el.isConnected) el.innerHTML = `<img src="${data}" alt="">`;
   }
 }
 
@@ -181,9 +185,10 @@ async function route() {
     if (page === 'privacy') return privacyView();
     if (!token) return landingView();
     await getMe();
-    if (!me.setup_done && page !== 'setup') return go('#/setup/1');
+    if (page === 'me' && a === 'preview') return previewView();
+    if (!me.setup_done && page !== 'setup') return go('#/setup');
     switch (page) {
-      case 'setup': return setupView(Number(a) || 1, b === 'edit');
+      case 'setup': return setupView(Number(a) || 0, b === 'edit');
       case 'match':
         if (b === 'checkin') return checkinView(a, c);
         if (b === 'prompt') return promptView(a, c);
@@ -302,7 +307,7 @@ async function joinView(inviteToken) {
       store.set(TOKEN_KEY, token);
       me = null;
       history.replaceState(null, '', location.pathname);
-      go('#/setup/1');
+      go('#/setup');
     }, $('#j-err'));
   });
 }
@@ -323,41 +328,118 @@ async function signinView(linkToken) {
 
 // ---------- setup questionnaire ----------
 
-const STEPS = ['About you', 'What matters', 'Secret wishlist', 'What you love', 'The practical bits'];
+// Section 0 is the overview; "The basics" were answered when joining.
+const SECTIONS = [
+  { title: 'What you’re looking for', sub: 'Relationship, timing, age range', mins: 1 },
+  { title: 'Life and future', sub: 'Kids, where you’re heading', mins: 1 },
+  { title: 'Lifestyle', sub: 'Drinking, weekends, pets', mins: 1 },
+  { title: 'How you date', sub: 'A good date, free time, budget', mins: 2 },
+  { title: 'In a relationship', sub: 'How you show care, texting', mins: 1 },
+  { title: 'Your secret wishlist', sub: 'Never shown to anyone', mins: 1 },
+  { title: 'What you love', sub: 'The things you’d talk about all night', mins: 2 },
+  { title: 'Photos and prompts', sub: 'What your match sees first', mins: 2 },
+];
+
+/** Is a section answered enough to count as done? */
+function sectionDone(i, a, m = me) {
+  switch (i) {
+    case 1: return !!(a.looking_for && a.age_min && a.age_max);
+    case 2: return !!a.kids;
+    case 3: return !!(a.drinking && a.smoking);
+    case 4: return !!(a.values && a.energy && (a.free || []).length);
+    case 5: return !!((a.care || []).length && a.texting);
+    case 6: return (a.wishlist || []).length > 0 || !!a.wishlist_own;
+    case 7: return (a.loves || []).length > 0;
+    case 8: return (m.photo_slots || []).length >= 2;
+    default: return true;
+  }
+}
+const firstOpenSection = () => SECTIONS.findIndex((_, i) => !sectionDone(i + 1, me.answers || {})) + 1;
+
+const lockIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+
+/** A single-choice question from PROFILE_Q, as a row of options. */
+function choice(c, key, a, { list = false } = {}) {
+  const q = c.PROFILE_Q[key];
+  return `<fieldset><legend>${esc(q.q)}${q.private ? ` <span class="hint" style="display:inline-flex;gap:4px;align-items:center;font-weight:500;white-space:nowrap;margin-left:4px">${lockIcon} Private</span>` : ''}</legend>
+    <div class="${list ? 'list-opts' : 'seg'}">${q.options.map((o) => opt('radio', key, o.id, o.label, a[key] === o.id)).join('')}</div></fieldset>`;
+}
+
+const ages = (sel) => Array.from({ length: 63 }, (_, i) => i + 18).map((n) => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
+
+async function setupOverview() {
+  const a = me.answers || {};
+  const next = firstOpenSection();
+  render(`
+    <div class="stack">
+      <p class="eyebrow">Welcome, ${esc(me.name)}</p>
+      <h1>Let’s get to know you properly</h1>
+      <p class="lead">About 10 minutes, mostly taps. Stop any time and carry on later.</p>
+    </div>
+    <div class="card" style="gap:0;padding:6px 16px">
+      ${[{ title: 'The basics', sub: 'Name, age, who you’d like to meet', done: true }, ...SECTIONS.map((s, i) => ({ ...s, done: sectionDone(i + 1, a), i: i + 1 }))].map((s, k) => `
+        <a class="match-row card-link" href="${s.i ? `#/setup/${s.i}` : '#/me'}" style="padding:10px 0;${k ? 'border-top:1px solid var(--line);' : ''}">
+          <span class="avatar" style="width:28px;height:28px;font:600 13px var(--body);${s.done ? 'background:var(--wine);color:#fff' : 'background:var(--sand)'}">${s.done ? '✓' : k + 1}</span>
+          <span class="who"><strong style="font-size:15px">${esc(s.title)}</strong><span class="small muted" style="display:block">${esc(s.sub)}</span></span>
+          <span class="small muted">${s.done ? 'Done' : `${s.mins} min`}</span>
+        </a>`).join('')}
+    </div>
+    <div class="notice">${icon.lock}<span>Anything marked private is only used for matching and planning, never shown on your profile.</span></div>
+    ${next > 0 ? `<a class="btn primary block" href="#/setup/${next}">${Object.keys(a).length ? 'Carry on' : 'Start'}</a>`
+      : `<button class="btn primary block" id="finish">Finish and see your matches</button>`}
+  `);
+  $('#finish')?.addEventListener('click', (e) => busy(e.target, async () => {
+    me = await api('PUT', '/api/me', { setup_done: true });
+    toast('You’re all set.');
+    go('#/home');
+  }));
+}
 
 async function setupView(step, editing) {
   const c = await getContent();
+  me = await getMe(true);
+  if (!step) return setupOverview();
   const a = me.answers || {};
-  const total = STEPS.length;
+  const total = SECTIONS.length;
   step = Math.min(Math.max(step, 1), total);
   let body = '';
   if (step === 1) {
     body = `
-      <h1>Hi ${esc(me.name)}. Let’s start with a photo.</h1>
-      <p class="lead">A clear, recent photo of you. Matches see it with your first name, age and city.</p>
-      <div class="row">
-        ${photoTag(me.id, me.name, 'avatar lg')}
-        <div class="stack grow">
-          <label class="btn small" for="photo-in">${me.has_photo ? 'Change photo' : 'Add a photo'}</label>
-          <input id="photo-in" type="file" accept="image/*" hidden>
-          <span class="hint" id="photo-msg"></span>
-        </div>
-      </div>
-      <div class="field"><label for="about">A line or two about you</label>
-        <textarea class="input" id="about" name="about" maxlength="500" placeholder="What you’re into, what a good weekend looks like…">${esc(me.about)}</textarea></div>`;
+      <h1>First, the big picture</h1>
+      ${choice(c, 'looking_for', a, { list: true })}
+      ${choice(c, 'serious_when', a)}
+      <fieldset><legend>Ages you’d like to meet</legend>
+        <div class="row"><label class="row grow" style="gap:8px">From <select class="input" name="age_min" style="width:auto">${ages(a.age_min || Math.max(18, me.age - 5))}</select></label>
+        <label class="row grow" style="gap:8px">to <select class="input" name="age_max" style="width:auto">${ages(a.age_max || me.age + 5)}</select></label></div></fieldset>
+      <div class="field"><label for="travel">How far you’ll travel for a date</label>
+        <select class="input" id="travel" name="travel_mins">${[15, 30, 45, 60, 90].map((m) => `<option value="${m}" ${Number(a.travel_mins || 45) === m ? 'selected' : ''}>Up to ${m} minutes</option>`).join('')}</select></div>
+      <div class="notice">${icon.shield}<span>These are firm: you’ll only be matched with people who fit them, and who you fit too.</span></div>`;
   } else if (step === 2) {
-    body = `
-      <h1>What matters to you on a date?</h1>
-      <fieldset><legend>A good date is…</legend><div class="list-opts">${c.VALUES.map((v) => opt('radio', 'values', v.id, v.label, a.values === v.id)).join('')}</div></fieldset>
-      <fieldset><legend>Your pace</legend><div class="seg">${c.ENERGY.map((v) => opt('radio', 'energy', v.id, v.label, a.energy === v.id)).join('')}</div></fieldset>`;
+    body = `<h1>Where is life heading?</h1>${['kids', 'date_with_kids', 'five_years', 'last_relationship'].map((k) => choice(c, k, a)).join('')}`;
   } else if (step === 3) {
+    body = `<h1>A typical week</h1>${['drinking', 'smoking', 'cannabis', 'exercise', 'weekends', 'rhythm', 'pets'].map((k) => choice(c, k, a)).join('')}`;
+  } else if (step === 4) {
+    body = `
+      <h1>How you date</h1>
+      <fieldset><legend>A good date is…</legend><div class="list-opts">${c.VALUES.map((v) => opt('radio', 'values', v.id, v.label, a.values === v.id)).join('')}</div></fieldset>
+      <fieldset><legend>Your pace</legend><div class="seg">${c.ENERGY.map((v) => opt('radio', 'energy', v.id, v.label, a.energy === v.id)).join('')}</div></fieldset>
+      <fieldset><legend>When you’re usually free for dates</legend><div class="chips">${c.FREE.map((f) => opt('checkbox', 'free', f.id, f.label, (a.free || []).includes(f.id))).join('')}</div></fieldset>
+      <fieldset><legend>Budget for a date</legend><div class="seg">${c.BUDGET.map((b) => opt('radio', 'budget', b.id, b.label, Number(a.budget || 2) === b.id)).join('')}</div></fieldset>
+      <label class="toggle"><input type="checkbox" name="alcohol_free" data-single="1" ${a.alcohol_free ? 'checked' : ''}> <span>I’d rather avoid dates built around drinking</span></label>
+      <div class="field"><label for="diet">Food needs <span class="muted" style="font-weight:400">Private</span></label><input class="input" id="diet" name="dietary" maxlength="120" value="${esc(a.dietary || '')}" placeholder="Vegetarian, allergies…"></div>`;
+  } else if (step === 5) {
+    body = `
+      <h1>You, once it’s going well</h1>
+      <fieldset><legend class="spread" style="width:100%">How you show you care<span class="hint">Pick 2</span></legend><div class="chips">${c.CARE.map((x) => opt('checkbox', 'care', x.id, x.label, (a.care || []).includes(x.id))).join('')}</div></fieldset>
+      ${['together', 'disagree', 'texting'].map((k) => choice(c, k, a)).join('')}`;
+  } else if (step === 6) {
     body = `
       <p class="eyebrow">Your secret wishlist</p>
       <h1>What date would you secretly love someone to plan for you?</h1>
       <p class="lead">Pick as many as you like. Matches never see this list. We turn it into ideas for them, one at a time, once you’re past a first date.</p>
       <fieldset><legend class="sr">Wishlist</legend><div class="list-opts">${c.WISHES.map((w) => opt('checkbox', 'wishlist', w.id, w.label, (a.wishlist || []).includes(w.id))).join('')}</div></fieldset>
       <div class="field"><label for="own">Or write your own</label><input class="input" id="own" name="wishlist_own" maxlength="200" value="${esc(a.wishlist_own || '')}" placeholder="A bookshop crawl ending in dumplings…"><span class="hint">Only used by the person planning matches, never shown to anyone.</span></div>`;
-  } else if (step === 4) {
+  } else if (step === 7) {
     const favs = [...(a.favourites || []), '', '', '', '', ''].slice(0, 5);
     body = `
       <h1>What do you love?</h1>
@@ -366,18 +448,27 @@ async function setupView(step, editing) {
       <fieldset><legend>Up to five favourites</legend><span class="hint">Films, shows, books, albums or places.</span>
         ${favs.map((f, i) => `<input class="input" name="fav" aria-label="Favourite ${i + 1}" maxlength="80" value="${esc(f)}">`).join('')}</fieldset>`;
   } else {
+    const prompts = [...(a.prompts || []), {}, {}, {}].slice(0, 3);
     body = `
-      <h1>The practical bits</h1>
-      <p class="lead">So every idea fits you both.</p>
-      <fieldset><legend>Budget for a date</legend><div class="seg">${c.BUDGET.map((b) => opt('radio', 'budget', b.id, b.label, Number(a.budget || 2) === b.id)).join('')}</div></fieldset>
-      <label class="toggle"><input type="checkbox" name="alcohol_free" data-single="1" ${a.alcohol_free ? 'checked' : ''}> <span>I’d rather avoid dates built around drinking</span></label>
-      <div class="field"><label for="diet">Food needs</label><input class="input" id="diet" name="dietary" maxlength="120" value="${esc(a.dietary || '')}" placeholder="Vegetarian, allergies…"></div>`;
+      <h1>What your match sees first</h1>
+      <p class="lead">2 to 4 recent photos of you, and up to three prompts to give them something to ask about.</p>
+      <div id="photo-grid" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px"></div>
+      <span class="hint" id="photo-msg">Tap a square to add or change a photo. The first one is your main photo.</span>
+      <input id="photo-in" type="file" accept="image/*" hidden>
+      <div class="field"><label for="job">What you do <span class="muted" style="font-weight:400">Optional</span></label><input class="input" id="job" name="job" maxlength="60" value="${esc(me.job || '')}" placeholder="Designer, nurse, studying law…"></div>
+      ${prompts.map((p, i) => `<div class="card stack" style="gap:8px">
+        <label class="small muted" for="pq${i}">Prompt ${i + 1}${i ? ' (optional)' : ''}</label>
+        <select class="input" id="pq${i}" name="pq${i}"><option value="">Choose a prompt</option>${c.PROMPTS.map((q) => `<option ${p.q === q ? 'selected' : ''}>${esc(q)}</option>`).join('')}</select>
+        <textarea class="input" name="pa${i}" maxlength="200" aria-label="Your answer to prompt ${i + 1}" style="min-height:70px" placeholder="Your answer">${esc(p.a || '')}</textarea></div>`).join('')}
+      <div class="field"><label for="about">A line or two about you <span class="muted" style="font-weight:400">Optional</span></label>
+        <textarea class="input" id="about" name="about" maxlength="500">${esc(me.about)}</textarea></div>
+      <a class="btn" href="#/me/preview">Preview my profile</a>`;
   }
+  const backTo = editing ? '#/me' : step > 1 ? `#/setup/${step - 1}` : '#/setup';
   render(`
     <div class="stack">
-      <div class="spread"><span class="small muted">${editing ? 'Editing' : `Step ${step} of ${total}`} · ${esc(STEPS[step - 1])}</span>
-        ${step > 1 && !editing ? `<a class="linkish quiet" href="#/setup/${step - 1}">${icon.back} Back</a>` : ''}
-        ${editing ? `<a class="linkish quiet" href="#/me">Cancel</a>` : ''}</div>
+      <div class="spread"><a class="linkish quiet" href="${backTo}">${icon.back} ${editing ? 'Cancel' : 'Back'}</a>
+        <span class="small muted">${editing ? 'Editing' : `${step} of ${total}`} · ${esc(SECTIONS[step - 1].title)}</span></div>
       ${editing ? '' : `<div class="progress"><div style="width:${Math.round((step / total) * 100)}%"></div></div>`}
     </div>
     <form id="step" class="stack-lg" novalidate>
@@ -386,74 +477,189 @@ async function setupView(step, editing) {
       <button class="btn primary block" type="submit">${editing ? 'Save' : step === total ? 'Finish' : 'Continue'}</button>
     </form>
   `);
-  if (step === 1) bindPhoto();
+  if (step === total) renderPhotoGrid();
   $('#step').addEventListener('submit', (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button[type=submit]');
     busy(btn, async () => {
       const f = formData(e.target);
       const payload = {};
+      const pick = (...keys) => Object.fromEntries(keys.map((k) => [k, f[k] ?? null]));
       if (step === 1) {
-        if (!me.has_photo && !editing) throw new ApiError('Please add a photo first.');
-        payload.about = f.about;
+        if (!f.looking_for) throw new ApiError('Please choose what you’re looking for.');
+        payload.answers = { ...pick('looking_for', 'serious_when'), age_min: Number(f.age_min), age_max: Number(f.age_max), travel_mins: Number(f.travel_mins) };
       } else if (step === 2) {
-        if (!f.values || !f.energy) throw new ApiError('Please choose one of each.');
-        payload.answers = { values: f.values, energy: f.energy };
+        if (!f.kids) throw new ApiError('Please answer the question about kids.');
+        payload.answers = pick('kids', 'date_with_kids', 'five_years', 'last_relationship');
       } else if (step === 3) {
-        payload.answers = { wishlist: f.wishlist || [], wishlist_own: f.wishlist_own };
+        payload.answers = pick('drinking', 'smoking', 'cannabis', 'exercise', 'weekends', 'rhythm', 'pets');
       } else if (step === 4) {
+        if (!f.values || !f.energy) throw new ApiError('Please choose what makes a good date and your pace.');
+        if (!(f.free || []).length) throw new ApiError('Please choose when you’re usually free.');
+        payload.answers = { values: f.values, energy: f.energy, free: f.free, budget: Number(f.budget || 2), alcohol_free: !!f.alcohol_free, dietary: f.dietary };
+      } else if (step === 5) {
+        if ((f.care || []).length > 2) throw new ApiError('Please pick up to 2.');
+        payload.answers = { care: f.care || [], ...pick('together', 'disagree', 'texting') };
+      } else if (step === 6) {
+        payload.answers = { wishlist: f.wishlist || [], wishlist_own: f.wishlist_own };
+      } else if (step === 7) {
         if ((f.loves || []).length > 12) throw new ApiError('Please pick up to 12.');
         payload.answers = { loves: f.loves || [], favourites: $$('input[name=fav]').map((i) => i.value).filter((x) => x.trim()) };
       } else {
-        payload.answers = { budget: Number(f.budget || 2), alcohol_free: !!f.alcohol_free, dietary: f.dietary };
-        if (!editing) payload.setup_done = true;
+        if ((me.photo_slots || []).length < 2 && !editing) throw new ApiError('Please add at least two photos.');
+        payload.job = f.job;
+        payload.about = f.about;
+        payload.answers = { prompts: [0, 1, 2].map((i) => ({ q: f[`pq${i}`], a: f[`pa${i}`] })).filter((p) => p.q && p.a && p.a.trim()) };
       }
       me = await api('PUT', '/api/me', payload);
-      if (editing) { toast('Saved.'); go('#/me'); } else if (step === total) { toast('You’re all set.'); go('#/home'); } else go(`#/setup/${step + 1}`);
+      if (editing) { toast('Saved.'); go('#/me'); return; }
+      if (step === total) {
+        if (firstOpenSection() > 0) { toast('Nearly there: a few sections still need answers.'); go('#/setup'); return; }
+        me = await api('PUT', '/api/me', { setup_done: true });
+        toast('You’re all set.');
+        go('#/home');
+      } else go(`#/setup/${step + 1}`);
     }, $('#s-err'));
   });
 }
 
-function bindPhoto() {
-  $('#photo-in').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
+/** The four photo squares on the photos step. Slot 0 is the main photo. */
+function renderPhotoGrid() {
+  const grid = $('#photo-grid');
+  if (!grid) return;
+  const filled = new Set(me.photo_slots || []);
+  grid.innerHTML = [0, 1, 2, 3].map((slot) => filled.has(slot)
+    ? `<div><div style="position:relative"><button type="button" class="photo-hero" data-slot="${slot}" aria-label="Change photo ${slot + 1}" style="aspect-ratio:3/4;border:none;padding:0;cursor:pointer" data-own-slot="${slot}">${icon.person}</button>
+        ${slot === Math.min(...filled) ? '<span class="tag" style="position:absolute;left:6px;bottom:6px;background:rgba(28,26,31,.75);color:#fff;font-size:10px;padding:3px 6px;pointer-events:none">MAIN</span>' : ''}</div>
+        <button type="button" class="linkish quiet small" data-remove="${slot}" style="min-height:32px;font-size:12px">Remove</button></div>`
+    : `<button type="button" class="photo-hero" data-slot="${slot}" aria-label="Add a photo" style="aspect-ratio:3/4;background:#fff;border:1.5px dashed #D6CBBF;cursor:pointer;color:var(--wine);font-size:24px">+</button>`).join('');
+  for (const el of $$('[data-own-slot]')) {
+    const slot = el.dataset.ownSlot;
+    api('GET', `/api/photos/${me.id}?slot=${slot}`).then((r) => { if (r.data && el.isConnected) el.innerHTML = `<img src="${r.data}" alt="">`; }).catch(() => {});
+  }
+  let target = 0;
+  const input = $('#photo-in');
+  $$('[data-slot]').forEach((b) => b.addEventListener('click', () => { target = Number(b.dataset.slot); input.value = ''; input.click(); }));
+  input.onchange = async () => {
+    const file = input.files[0];
     if (!file) return;
     const msg = $('#photo-msg');
     msg.textContent = 'Uploading…';
     try {
       const data = await resizePhoto(file);
-      await api('PUT', '/api/me/photo', { data });
+      const r = await api('PUT', `/api/me/photos/${target}`, { data });
+      me.photo_slots = r.slots;
       me.has_photo = true;
-      photoCache.set(me.id, Promise.resolve(data));
-      $$(`[data-photo="${me.id}"]`).forEach((el) => { el.innerHTML = `<img src="${data}" alt="">`; });
+      photoCache.clear();
       msg.textContent = 'Photo saved.';
-      const label = document.querySelector('label[for="photo-in"]');
-      if (label) label.textContent = 'Change photo';
+      renderPhotoGrid();
     } catch (err) {
       msg.textContent = err.message || 'Could not use that photo.';
     }
-  });
+  };
+  $$('[data-remove]').forEach((b) => b.addEventListener('click', () => busy(b, async () => {
+    const r = await api('POST', `/api/me/photos/${b.dataset.remove}/delete`);
+    me.photo_slots = r.slots;
+    photoCache.clear();
+    renderPhotoGrid();
+  })));
 }
 
 function resizePhoto(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const max = 800;
+      const max = 900;
       const scale = Math.min(1, max / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      let q = 0.85;
+      let q = 0.82;
       let data = canvas.toDataURL('image/jpeg', q);
-      while (data.length > 850 * 1024 && q > 0.4) { q -= 0.15; data = canvas.toDataURL('image/jpeg', q); }
+      while (data.length > 600 * 1024 && q > 0.4) { q -= 0.12; data = canvas.toDataURL('image/jpeg', q); }
       URL.revokeObjectURL(img.src);
       resolve(data);
     };
     img.onerror = () => reject(new Error('That file isn’t an image we can read.'));
     img.src = URL.createObjectURL(file);
   });
+}
+
+// ---------- profile (what a match sees) ----------
+
+const heart = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>';
+
+function photoBlock(p, n) {
+  if (n >= p.photo_count) return '';
+  return `<div class="photo-hero" data-photo="${esc(p.id)}" data-n="${n}" role="img" aria-label="${esc(p.name)}, photo ${n + 1}" style="aspect-ratio:4/5">${icon.person}</div>`;
+}
+
+function promptBlock(p, i) {
+  const x = p.prompts[i];
+  if (!x) return '';
+  return `<section class="card"><p class="small" style="color:var(--wine);font-weight:600">${esc(x.q)}</p><p style="font:500 22px/1.25 var(--display)">${esc(x.a)}</p></section>`;
+}
+
+/** The full profile. `shared` is what you have in common (null on your own preview). */
+function profileBlocks(p, shared) {
+  const sharedLoves = new Set(shared?.loves || []);
+  const sharedLines = [];
+  if (shared) {
+    if (shared.loves.length || shared.favourites.length) {
+      sharedLines.push(`${shared.loves.length ? `You both love <strong>${shared.loves.map(esc).join(', ')}</strong>` : ''}${shared.loves.length && shared.favourites.length ? ', and you' : shared.favourites.length ? 'You' : ''}${shared.favourites.length ? ` both named <strong>${shared.favourites.map(esc).join(', ')}</strong>` : ''}.`);
+    }
+    if (shared.values) sharedLines.push(`You both said a good date is <strong>${esc(shared.values.toLowerCase())}</strong>.`);
+    if (shared.free?.length) sharedLines.push(`You’re both usually free on <strong>${shared.free.map((f) => esc(f.toLowerCase())).join(' and ')}</strong>.`);
+  }
+  return `
+    <section class="stack">
+      <div class="photo-hero" data-photo="${esc(p.id)}" data-n="0" data-cycle="${p.photo_count}" role="img" aria-label="${esc(p.name)}" style="aspect-ratio:4/5;cursor:${p.photo_count > 1 ? 'pointer' : 'default'};position:relative">${icon.person}</div>
+      ${p.photo_count > 1 ? `<p class="hint center">Tap the photo to see more (${p.photo_count})</p>` : ''}
+      <div class="stack" style="gap:6px">
+        <h1 style="font-size:32px">${esc(p.name)}, ${esc(p.age)}</h1>
+        <p class="muted">${p.job ? `${esc(p.job)} · ` : ''}${esc(p.city)}</p>
+        ${p.looking_for ? `<p><span class="tag wine">${esc(p.looking_for)}</span></p>` : ''}
+      </div>
+      ${p.facts.length ? `<div class="chips">${p.facts.map((f) => `<span class="tag">${esc(f)}</span>`).join('')}</div>` : ''}
+    </section>
+    ${sharedLines.length ? `<section class="card accent"><p class="eyebrow">What you share</p>${sharedLines.map((l) => `<p class="row" style="align-items:flex-start;flex-wrap:nowrap;color:var(--ink-2)"><span style="color:var(--wine);margin-top:3px">${heart}</span><span>${l}</span></p>`).join('')}</section>` : ''}
+    ${promptBlock(p, 0)}
+    ${photoBlock(p, 1)}
+    ${p.loves.length || p.favourites.length ? `<section class="card">
+      ${p.loves.length ? `<p class="eyebrow" style="color:var(--muted)">${esc(p.name)} loves</p><div class="chips">${p.loves.map((l) => `<span class="tag ${sharedLoves.has(l) ? 'wine' : ''}">${esc(l)}</span>`).join('')}</div>` : ''}
+      ${p.favourites.length ? `<p class="eyebrow" style="color:var(--muted)">Favourites</p><p class="muted">${p.favourites.map(esc).join(' · ')}</p>` : ''}
+    </section>` : ''}
+    ${promptBlock(p, 1)}
+    ${p.about ? `<section class="card"><p class="eyebrow" style="color:var(--muted)">About ${esc(p.name)}</p><p>${esc(p.about)}</p></section>` : ''}
+    ${p.how_they_date.length ? `<section class="card"><p class="eyebrow" style="color:var(--muted)">How ${esc(p.name)} dates</p>${p.how_they_date.map((x) => `<p class="muted">${esc(x)}</p>`).join('')}</section>` : ''}
+    ${photoBlock(p, 2)}
+    ${promptBlock(p, 2)}
+    ${photoBlock(p, 3)}`;
+}
+
+/** Tap the main photo to step through the others. */
+function bindPhotoCycle() {
+  for (const el of $$('[data-cycle]')) {
+    const count = Number(el.dataset.cycle);
+    if (count < 2) continue;
+    el.addEventListener('click', async () => {
+      const n = (Number(el.dataset.n) + 1) % count;
+      el.dataset.n = n;
+      const data = await photoData(el.dataset.photo, n);
+      if (data && el.isConnected) el.innerHTML = `<img src="${data}" alt="">`;
+    });
+  }
+}
+
+async function previewView() {
+  const p = await api('GET', '/api/me/profile');
+  render(`
+    <div class="spread"><a class="linkish quiet" href="#/setup/8">${icon.back} Back</a><span class="small muted">Preview</span></div>
+    <div class="notice">${icon.lock}<span>This is exactly what a match sees. Your private answers and secret wishlist aren’t shown.</span></div>
+    ${profileBlocks(p, null)}
+  `, { active: 'me' });
+  bindPhotoCycle();
 }
 
 // ---------- home ----------
@@ -506,6 +712,7 @@ async function homeView() {
       <h1>This week</h1>
     </div>
     ${me.status === 'paused' ? '<div class="notice">You’re paused, so you won’t get new matches. Turn this off under You.</div>' : ''}
+    ${firstOpenSection() > 0 ? `<a class="card-link" href="#/setup"><div class="card accent"><strong>We’ve added a few questions</strong><p class="small muted">About five minutes. Your answers help us pick better matches and plan better dates.</p></div></a>` : ''}
     ${todos.length ? `<section class="stack"><h2>To do</h2>${todos.map(({ m, t }) => `
       <a class="card-link" href="${todoLink(m, t)}"><div class="card accent"><div class="match-row">
         ${photoTag(m.partner.id, m.partner.name)}<p class="who">${esc(TODO_TEXT[t](m.partner.name))}</p></div></div></a>`).join('')}</section>` : ''}
@@ -532,28 +739,20 @@ async function matchView(id) {
 
 function renderMatch(d) {
   const p = d.partner;
-  const sharedLoves = new Set(d.shared.loves);
   const done = d.dates.filter((x) => x.status === 'done');
+  // Deciding on a first date: the profile comes first, the plan after it.
+  // Once you've met: what's happening now comes first, the profile further down.
+  const deciding = d.status === 'proposed' && !d.dates.some((x) => x.status === 'confirmed' || x.status === 'done');
+  const header = `<div class="match-row">${photoTag(p.id, p.name)}<div class="who"><h2>${esc(p.name)}, ${esc(p.age)}</h2><p class="small muted">${p.job ? `${esc(p.job)} · ` : ''}${esc(p.city)}</p></div></div>`;
   render(`
     <a class="linkish quiet" href="#/home">${icon.back} This week</a>
-    <section class="card">
-      ${photoTag(p.id, p.name, 'photo-hero')}
-      <div class="spread"><h2>${esc(p.name)}, ${esc(p.age)}</h2><span class="muted small">${esc(p.city)}</span></div>
-      ${p.about ? `<p>${esc(p.about)}</p>` : ''}
-      ${p.loves.length ? `<div class="chips">${p.loves.map((l) => `<span class="tag ${sharedLoves.has(l) ? 'wine' : ''}">${esc(l)}</span>`).join('')}</div>` : ''}
-      ${p.favourites.length ? `<p class="small muted">Favourites: ${p.favourites.map(esc).join(', ')}</p>` : ''}
-      ${d.shared.loves.length || d.shared.values || d.shared.favourites.length ? `<div class="divider"></div><div class="stack">
-        <p class="eyebrow" style="color:var(--muted)">What you share</p>
-        ${d.shared.loves.length ? `<p>You both love <strong>${d.shared.loves.map(esc).join(', ')}</strong>.</p>` : ''}
-        ${d.shared.favourites.length ? `<p>You both named <strong>${d.shared.favourites.map(esc).join(', ')}</strong>.</p>` : ''}
-        ${d.shared.values ? `<p>You both said a good date is <strong>${esc(d.shared.values.toLowerCase())}</strong>.</p>` : ''}
-      </div>` : ''}
-    </section>
+    ${deciding ? profileBlocks(p, d.shared) : header}
     ${stateBlock(d)}
     ${d.can_message || d.messages.length ? messagesBlock(d) : ''}
     ${done.length ? `<section class="card"><h3>Your dates</h3><div class="timeline">${done.map((x) => `
       <div class="t"><span class="dot"></span><div class="stack" style="gap:4px"><strong>${esc(x.title)}</strong><span class="small muted">${day(x.starts_at)}${x.place ? ` · ${esc(x.place)}` : ''}</span>
       ${x.note_from_them ? `<p class="small">${esc(p.name)} wrote: “${esc(x.note_from_them)}”</p>` : ''}</div></div>`).join('')}</div></section>` : ''}
+    ${deciding ? '' : `<details class="card"><summary style="cursor:pointer;font-weight:600;min-height:28px">${esc(p.name)}’s profile</summary><div class="stack-lg" style="margin-top:12px">${profileBlocks(p, d.shared)}</div></details>`}
     <section class="stack">
       ${d.status === 'dating' && !d.i_asked_official && !d.prompts_due.includes('official') ? `<button class="linkish" id="start-official">Make it official with ${esc(p.name)}</button>` : ''}
       ${d.can_step_back ? `<a class="linkish quiet" href="#/match/${d.id}/step-back">Step back from this</a>` : ''}
@@ -561,6 +760,9 @@ function renderMatch(d) {
     </section>
   `, { active: 'home' });
   bindMatch(d);
+  bindPhotoCycle();
+  // Photos inside a closed <details> load when it opens.
+  $('details')?.addEventListener('toggle', hydratePhotos, { once: true });
 }
 
 function dateCard(d, x, label) {
@@ -659,7 +861,7 @@ function bindMatch(d) {
     if (open.n === 1) {
       actions.innerHTML = open.i_accepted
         ? `<p class="muted">You’re in. Waiting for ${esc(d.partner.name)} to say yes${d.expires_at ? ` (by ${esc(when(d.expires_at))})` : ''}.</p>`
-        : `<button class="btn light" data-respond="accept">I’m in</button><button class="btn ghost-dark" data-respond="another">Another idea</button><button class="btn ghost-dark" data-respond="pass">Pass</button>
+        : `<button class="btn light small" data-respond="accept">I’m in</button><button class="btn ghost-dark small" data-respond="another">Another idea</button><button class="btn ghost-dark small" data-respond="pass">Pass</button>
            ${d.expires_at ? `<p class="small muted" style="flex-basis:100%">Reply by ${esc(when(d.expires_at))}, or this match closes kindly.</p>` : ''}`;
     } else if (open.planned_by === 'me') {
       actions.innerHTML = `<p class="muted">Waiting for ${esc(d.partner.name)} to say yes.</p>`;
@@ -919,17 +1121,16 @@ async function meView() {
     <h1>You</h1>
     <form id="prof" class="card stack-lg" novalidate>
       <div class="row">${photoTag(me.id, me.name, 'avatar lg')}<div class="stack grow">
-        <label class="btn small" for="photo-in">Change photo</label><input id="photo-in" type="file" accept="image/*" hidden><span class="hint" id="photo-msg"></span></div></div>
+        <a class="btn small" href="#/setup/8/edit">Photos and prompts</a><a class="linkish" href="#/me/preview">Preview my profile</a></div></div>
       <div class="field"><label for="m-name">First name</label><input class="input" id="m-name" name="name" value="${esc(me.name)}" maxlength="40"></div>
       <div class="field"><label for="m-city">City</label><input class="input" id="m-city" name="city" value="${esc(me.city)}" maxlength="60"></div>
-      <div class="field"><label for="m-about">About you</label><textarea class="input" id="m-about" name="about" maxlength="500">${esc(me.about)}</textarea></div>
       <fieldset><legend>I’d like to meet</legend><div class="seg">${[['woman', 'Women'], ['man', 'Men'], ['nonbinary', 'Non-binary people']].map(([v, l]) => opt('checkbox', 'seeking', v, l, me.seeking.includes(v))).join('')}</div></fieldset>
       <p class="error" id="m-err"></p>
       <button class="btn primary" type="submit">Save</button>
     </form>
     <section class="card">
       <h3>Your answers</h3>
-      ${STEPS.slice(1).map((s, i) => `<a class="linkish" href="#/setup/${i + 2}/edit">${esc(s)}</a>`).join('')}
+      ${SECTIONS.slice(0, 7).map((s, i) => `<a class="linkish" href="#/setup/${i + 1}/edit">${esc(s.title)}${sectionDone(i + 1, me.answers || {}) ? '' : ' <span class="tag wine">to do</span>'}</a>`).join('')}
       <p class="small muted">Your wishlist: ${(me.answers.wishlist || []).map((id) => esc(c.WISHES.find((w) => w.id === id)?.label)).filter(Boolean).join(', ') || 'nothing yet'}. Only used for ideas, never shown.</p>
     </section>
     <section class="card">
@@ -944,12 +1145,11 @@ async function meView() {
     </section>
     <button class="linkish quiet" id="signout">Sign out</button>
   `, { active: 'me' });
-  bindPhoto();
   $('#prof').addEventListener('submit', (e) => {
     e.preventDefault();
     const f = formData(e.target);
     busy(e.target.querySelector('button[type=submit]'), async () => {
-      me = await api('PUT', '/api/me', { name: f.name, city: f.city, about: f.about, seeking: f.seeking });
+      me = await api('PUT', '/api/me', { name: f.name, city: f.city, seeking: f.seeking });
       toast('Saved.');
     }, $('#m-err'));
   });
@@ -1091,9 +1291,22 @@ function bindPlanForm(id, send, done) {
 async function adminUserView(id) {
   render('<p class="loading">Loading…</p>', { wide: true, active: 'admin' });
   const c = await getContent();
-  const { user: u, candidates } = await api('GET', `/api/admin/users/${id}`);
+  const { user: u, candidates, filtered_out: filteredOut = [] } = await api('GET', `/api/admin/users/${id}`);
   const a = u.answers || {};
   const label = (list, v) => list.find((x) => String(x.id) === String(v))?.label || '—';
+  const pq = (key) => label(c.PROFILE_Q[key].options, a[key]);
+  const many = (list, ids) => (ids || []).map((x) => label(list, x)).join(', ') || '—';
+  const qRows = [
+    ['Looking for', `${pq('looking_for')} · serious: ${pq('serious_when')}`],
+    ['Ages, travel', `${a.age_min || '?'}–${a.age_max || '?'} · up to ${a.travel_mins || '?'} min`],
+    ['Kids', `${pq('kids')} · dates parents: ${pq('date_with_kids')}`],
+    ['Five years · last relationship', `${pq('five_years')} · ${pq('last_relationship')} (private)`],
+    ['Lifestyle', ['drinking', 'smoking', 'cannabis', 'exercise', 'weekends', 'rhythm', 'pets'].map((k) => `${c.PROFILE_Q[k].q.toLowerCase()}: ${pq(k)}`).join(' · ')],
+    ['Free', many(c.FREE, a.free)],
+    ['Relationship', `care: ${many(c.CARE, a.care)} · together: ${pq('together')} · disagree: ${pq('disagree')} · texting: ${pq('texting')}`],
+    ['Job', u.job || '—'],
+    ['Prompts', (a.prompts || []).map((p) => `<strong>${esc(p.q)}</strong>: ${esc(p.a)}`).join('<br>') || '—'],
+  ];
   render(`
     <a class="linkish quiet" href="#/admin/members">${icon.back} Members</a>
     <section class="card">
@@ -1107,6 +1320,7 @@ async function adminUserView(id) {
         <tr><th>Secret wishes</th><td>${u.wishes.map(esc).join(', ') || '—'}${a.wishlist_own ? `<br><em>${esc(a.wishlist_own)}</em>` : ''}</td></tr>
         <tr><th>Loves</th><td>${(a.loves || []).map(esc).join(', ') || '—'}</td></tr>
         <tr><th>Favourites</th><td>${(a.favourites || []).map(esc).join(', ') || '—'}</td></tr>
+        ${qRows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${k === 'Prompts' ? v : esc(v)}</td></tr>`).join('')}
       </tbody></table></div>
       <div class="row">
         ${u.status !== 'paused' ? `<button class="btn small" data-status="paused">Pause</button>` : `<button class="btn small" data-status="active">Reactivate</button>`}
@@ -1115,12 +1329,14 @@ async function adminUserView(id) {
     </section>
     <section class="stack">
       <h2>Suggested matches</h2>
-      <p class="muted small">People who want to meet each other, not blocked and never matched before, ranked by shared taste.</p>
+      <p class="muted small">People who pass every firm filter both ways (who they want to meet, age ranges, what they’re looking for, kids), not blocked and never matched before, ranked by shared taste and free times.</p>
       ${candidates.length ? candidates.map((x) => `
         <div class="card"><div class="spread"><strong>${esc(x.name)}, ${x.age} · ${esc(x.city)}</strong><span class="tag ${x.score >= 5 ? 'wine' : ''}">score ${x.score}</span></div>
-          <p class="small muted">${x.loves.length ? `Both love ${x.loves.map(esc).join(', ')}. ` : ''}${x.favourites.length ? `Both named ${x.favourites.map(esc).join(', ')}. ` : ''}${x.sameValues ? 'Same idea of a good date. ' : ''}Reliability ${x.reliability}.</p>
+          <p class="small muted">${x.loves.length ? `Both love ${x.loves.map(esc).join(', ')}. ` : ''}${x.favourites.length ? `Both named ${x.favourites.map(esc).join(', ')}. ` : ''}${x.sameValues ? 'Same idea of a good date. ' : ''}${x.free.length ? `Both free ${x.free.map((f) => esc(f.toLowerCase())).join(', ')}. ` : ''}Reliability ${x.reliability}.</p>
           <div class="row"><a class="linkish" href="#/admin/user/${x.id}">Open ${esc(x.name)}</a><button class="btn small" data-match="${x.id}">Match with a first date</button></div>
           <div data-match-form="${x.id}"></div></div>`).join('') : '<p class="muted">Nobody suitable yet.</p>'}
+      ${filteredOut.length ? `<details class="card"><summary style="cursor:pointer">Left out by firm filters (${filteredOut.length})</summary>
+        <p class="small muted">${filteredOut.map((x) => `${esc(x.name)}: ${esc(x.reason.toLowerCase())}`).join(' · ')}</p></details>` : ''}
     </section>
   `, { wide: true, active: 'admin' });
   $$('[data-status]').forEach((b) => b.addEventListener('click', () => {
